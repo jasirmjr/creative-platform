@@ -11,6 +11,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Mount Auth Routes
 app.use('/api/v1/auth', require('./routes/auth.routes'));
+app.use('/api/v1/categories', require('./routes/category.routes'));
+app.use('/api/v1/resources', require('./routes/resource.routes'));
+app.use('/api/v1/bookings', require('./routes/booking.routes'));
+app.use('/api/v1/vendors', require('./routes/vendor.routes'));
+app.use('/api/v1/portfolios', require('./routes/portfolio.routes'));
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Creative Talent API is healthy' });

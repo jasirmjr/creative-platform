@@ -1,380 +1,362 @@
-import React, { useState } from 'react';
-import { X, Smartphone, KeyRound, User, Mail, ShieldCheck, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 
-export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
-  const [step, setStep] = useState('mobile'); // 'mobile' | 'otp'
+export default function AuthModal({ isOpen, onClose, onSuccess, defaultMode = 'member' }) {
+  const [authTab, setAuthTab] = useState(defaultMode); // 'member' | 'admin'
+
+  // Member / Vendor OTP State
+  const [step, setStep] = useState(1);
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
+  const [role, setRole] = useState('customer'); // 'customer' | 'vendor'
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('customer');
   const [devOtpHint, setDevOtpHint] = useState('');
-  
+
+  // Admin Credentials State
+  const [adminEmail, setAdminEmail] = useState('admin@creativehub.com');
+  const [adminPassword, setAdminPassword] = useState('admin@hub2026');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Common State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setAuthTab(defaultMode);
+      setError('');
+    }
+  }, [isOpen, defaultMode]);
 
   if (!isOpen) return null;
 
+  // 1. Send OTP (Customers & Registered Vendors)
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!mobile || mobile.length < 10) {
-      setError('Please enter a valid 10-digit mobile number.');
-      return;
-    }
-
-    setLoading(true);
     setError('');
-    setSuccessMsg('');
+    setLoading(true);
 
     try {
-      const res = await fetch('/api/v1/auth/send-otp', {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile })
+        body: JSON.stringify({ mobile, role }),
       });
-
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to send OTP.');
-      }
-
-      setSuccessMsg('OTP sent successfully!');
-      if (data.otp) {
-        setDevOtpHint(data.otp);
-        setOtp(data.otp); // Pre-fill in dev mode for testing convenience
-      }
-      setStep('otp');
+      if (data.otp) setDevOtpHint(data.otp);
+      setStep(2);
     } catch (err) {
-      setError(err.message || 'Error connecting to backend API.');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // 2. Verify OTP
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    if (!otp || otp.length < 4) {
-      setError('Please enter the 4-digit OTP.');
-      return;
-    }
-
-    setLoading(true);
     setError('');
+    setLoading(true);
 
     try {
-      const res = await fetch('/api/v1/auth/verify-otp', {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile, otp, role, name, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Verification failed');
+
+      onSuccess(data.user, data.token);
+      resetModal();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 3. Admin Login (Email & Password)
+  const handleAdminLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/auth/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mobile,
-          otp,
-          role,
-          name: name || undefined,
-          email: email || undefined
-        })
+          email: adminEmail,
+          password: adminPassword,
+        }),
       });
-
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Admin authentication failed');
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'OTP verification failed.');
-      }
-
-      // Save token and pass user
-      localStorage.setItem('auth_token', data.token);
-      localStorage.setItem('auth_user', JSON.stringify(data.user));
-      onAuthSuccess(data.user, data.token);
-      onClose();
+      onSuccess(data.user, data.token);
+      resetModal();
     } catch (err) {
-      setError(err.message || 'Authentication error.');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const resetModal = () => {
+    setStep(1);
+    setMobile('');
+    setOtp('');
+    setName('');
+    setEmail('');
+    setError('');
+    setDevOtpHint('');
+    onClose();
+  };
+
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 100,
-      background: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(8px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px'
-    }}>
-      <div className="glass-card" style={{
-        width: '100%',
-        maxWidth: '440px',
-        padding: '32px',
-        position: 'relative',
-        boxShadow: '0 24px 48px rgba(0, 0, 0, 0.6)'
-      }}>
-        {/* Close Button */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 sm:p-8 shadow-xl relative">
         <button
-          onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px',
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--text-muted)',
-            cursor: 'pointer'
-          }}
+          onClick={resetModal}
+          className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 text-base cursor-pointer"
         >
-          <X size={20} />
+          ✕
         </button>
 
+        {/* Portal Switcher Tabs */}
+        <div className="flex items-center gap-2 mb-6 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <button
+            type="button"
+            onClick={() => {
+              setAuthTab('member');
+              setError('');
+            }}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              authTab === 'member'
+                ? 'bg-white text-blue-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            User / Vendor (OTP)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthTab('admin');
+              setError('');
+            }}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              authTab === 'admin'
+                ? 'bg-white text-purple-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Admin Console (Password)
+          </button>
+        </div>
+
         {/* Modal Header */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'rgba(99, 102, 241, 0.15)',
-            border: '1px solid rgba(99, 102, 241, 0.3)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: '12px'
-          }}>
-            <ShieldCheck size={24} color="#818cf8" />
-          </div>
-          <h3 style={{ fontSize: '22px', fontWeight: 700 }}>
-            {step === 'mobile' ? 'Sign In / Register' : 'Verify One-Time Password'}
-          </h3>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            {step === 'mobile' 
-              ? 'Enter your mobile number to get a login OTP code' 
-              : `Enter the 4-digit code sent to +91 ${mobile}`}
+        <div className="mb-5">
+          <span
+            className={`text-[10px] uppercase font-bold px-2.5 py-1 rounded-full border ${
+              authTab === 'admin'
+                ? 'text-purple-700 bg-purple-50 border-purple-200'
+                : 'text-blue-700 bg-blue-50 border-blue-200'
+            }`}
+          >
+            {authTab === 'admin' ? 'Security Gateway' : 'Passwordless Access'}
+          </span>
+          <h2 className="text-xl font-bold text-slate-900 mt-2">
+            {authTab === 'admin'
+              ? 'Administrator Login'
+              : step === 1
+              ? 'Sign in to Creative Hub'
+              : 'Verify One-Time Password'}
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            {authTab === 'admin'
+              ? 'Enter platform admin credentials to manage vendors & listings.'
+              : step === 1
+              ? 'Authenticate securely using your mobile number and SMS verification.'
+              : `Enter the code sent to ${mobile}`}
           </p>
         </div>
 
-        {/* Status Messages */}
         {error && (
-          <div style={{
-            padding: '10px 14px',
-            borderRadius: 'var(--radius-sm)',
-            background: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#f87171',
-            fontSize: '13px',
-            marginBottom: '16px'
-          }}>
+          <div className="mb-4 text-xs text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-xl font-medium leading-relaxed">
             {error}
           </div>
         )}
 
-        {successMsg && (
-          <div style={{
-            padding: '10px 14px',
-            borderRadius: 'var(--radius-sm)',
-            background: 'rgba(16, 185, 129, 0.12)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            color: '#34d399',
-            fontSize: '13px',
-            marginBottom: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <CheckCircle2 size={16} />
-            <span>{successMsg}</span>
+        {devOtpHint && authTab === 'member' && (
+          <div className="mb-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-center font-medium">
+            Development OTP: <strong className="font-mono text-sm tracking-wider text-amber-900">{devOtpHint}</strong>
           </div>
         )}
 
-        {devOtpHint && (
-          <div style={{
-            padding: '8px 12px',
-            borderRadius: 'var(--radius-sm)',
-            background: 'rgba(245, 158, 11, 0.12)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
-            color: '#fbbf24',
-            fontSize: '12px',
-            marginBottom: '16px',
-            textAlign: 'center'
-          }}>
-            ⚡ Dev Mode Auto-Generated OTP: <strong>{devOtpHint}</strong>
-          </div>
-        )}
-
-        {/* Step 1: Mobile Input Form */}
-        {step === 'mobile' ? (
-          <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* ADMIN LOGIN FORM */}
+        {authTab === 'admin' ? (
+          <form onSubmit={handleAdminLogin} className="space-y-4">
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
-                Mobile Number
-              </label>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                padding: '0 12px'
-              }}>
-                <Smartphone size={18} color="var(--text-muted)" style={{ marginRight: '8px' }} />
-                <span style={{ color: 'var(--text-muted)', fontSize: '14px', marginRight: '6px' }}>+91</span>
-                <input
-                  type="tel"
-                  required
-                  placeholder="98765 43210"
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
-                  style={{
-                    width: '100%',
-                    padding: '12px 0',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'white',
-                    fontSize: '15px',
-                    outline: 'none'
-                  }}
-                />
-              </div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Admin Email</label>
+              <input
+                type="email"
+                required
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                placeholder="admin@creativehub.com"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-purple-600 transition-all"
+              />
             </div>
 
-            <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: '100%', padding: '12px' }}>
-              {loading ? <Loader2 size={18} className="animate-spin" /> : (
-                <>
-                  <span>Send Login Code</span>
-                  <ArrowRight size={16} />
-                </>
-              )}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">Admin Password</label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-[11px] text-purple-600 hover:text-purple-700 cursor-pointer font-medium"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-purple-600 transition-all"
+              />
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600">
+              <span className="font-semibold text-slate-700 block mb-0.5">Admin Demo Credentials:</span>
+              <span>Email: <code className="font-mono font-bold text-slate-800">admin@creativehub.com</code></span>
+              <br />
+              <span>Password: <code className="font-mono font-bold text-slate-800">admin@hub2026</code></span>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+            >
+              {loading ? 'Authenticating...' : 'Sign In to Admin Console'}
             </button>
           </form>
         ) : (
-          /* Step 2: OTP Verification Form */
-          <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
-                Enter 4-Digit OTP
-              </label>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                padding: '0 12px'
-              }}>
-                <KeyRound size={18} color="var(--text-muted)" style={{ marginRight: '8px' }} />
+          /* MEMBER / VENDOR OTP LOGIN */
+          step === 1 ? (
+            <form onSubmit={handleSendOtp} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">I am signing in as:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRole('customer');
+                      setError('');
+                    }}
+                    className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                      role === 'customer'
+                        ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Customer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRole('vendor');
+                      setError('');
+                    }}
+                    className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                      role === 'vendor'
+                        ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Registered Vendor
+                  </button>
+                </div>
+
+                {role === 'vendor' && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50/70 border border-amber-200 rounded-xl p-2.5 mt-2 leading-relaxed">
+                    🔒 <strong>Vendor Policy:</strong> Only existing, registered vendors can sign in here. New creators must submit an application via <em>"+ Register as Vendor"</em> on the home dashboard.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Mobile Number</label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. 9876543210"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+              >
+                {loading ? 'Sending code...' : 'Continue with OTP'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">One-Time Password</label>
                 <input
                   type="text"
-                  maxLength={4}
                   required
-                  placeholder="1234"
+                  maxLength={4}
+                  placeholder="4-digit OTP"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 0',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'white',
-                    fontSize: '18px',
-                    letterSpacing: '4px',
-                    fontWeight: 700,
-                    outline: 'none'
-                  }}
+                  className="w-full text-center tracking-[0.5em] font-mono bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-base text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
                 />
               </div>
-            </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
-                Full Name (Optional for first-time)
-              </label>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                padding: '0 12px'
-              }}>
-                <User size={18} color="var(--text-muted)" style={{ marginRight: '8px' }} />
-                <input
-                  type="text"
-                  placeholder="e.g. Alex Rivera"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 0',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'white',
-                    fontSize: '14px',
-                    outline: 'none'
-                  }}
-                />
-              </div>
-            </div>
+              {role === 'customer' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Full Name (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="Your Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                  />
+                </div>
+              )}
 
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
-                I am joining as:
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setRole('customer')}
-                  style={{
-                    padding: '10px',
-                    borderRadius: 'var(--radius-md)',
-                    border: `1px solid ${role === 'customer' ? 'var(--primary)' : 'var(--border-color)'}`,
-                    background: role === 'customer' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.02)',
-                    color: role === 'customer' ? '#818cf8' : 'var(--text-secondary)',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Client / Producer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('vendor')}
-                  style={{
-                    padding: '10px',
-                    borderRadius: 'var(--radius-md)',
-                    border: `1px solid ${role === 'vendor' ? 'var(--accent-cyan)' : 'var(--border-color)'}`,
-                    background: role === 'vendor' ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255, 255, 255, 0.02)',
-                    color: role === 'vendor' ? '#22d3ee' : 'var(--text-secondary)',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Creator / Vendor
-                </button>
-              </div>
-            </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+              >
+                {loading ? 'Verifying...' : 'Verify & Enter Workspace'}
+              </button>
 
-            <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: '100%', padding: '12px', marginTop: '6px' }}>
-              {loading ? <Loader2 size={18} className="animate-spin" /> : 'Confirm & Log In'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStep('mobile')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted)',
-                fontSize: '12px',
-                cursor: 'pointer',
-                textAlign: 'center'
-              }}
-            >
-              ← Change mobile number
-            </button>
-          </form>
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="w-full text-center text-xs text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+              >
+                Change phone number
+              </button>
+            </form>
+          )
         )}
       </div>
     </div>

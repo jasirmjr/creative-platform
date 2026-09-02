@@ -1,105 +1,112 @@
 import React from 'react';
-import { Sparkles, Video, User, LogOut, CheckCircle2, AlertCircle } from 'lucide-react';
 
-export default function Navbar({ onOpenAuth, user, onLogout, backendHealthy }) {
+export default function Navbar({
+  user,
+  onOpenAuth,
+  onLogout,
+  currentView = 'marketplace',
+  onNavigate,
+  pendingCount = 0,
+}) {
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
   return (
-    <nav style={{
-      position: 'sticky',
-      top: 0,
-      zIndex: 50,
-      backdropFilter: 'blur(20px)',
-      backgroundColor: 'rgba(10, 12, 16, 0.8)',
-      borderBottom: '1px solid var(--border-color)',
-      padding: '16px 0'
-    }}>
-      <div className="container" style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        {/* Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', cursor: 'pointer' }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)'
-          }}>
-            <Video size={22} color="#ffffff" />
+    <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        {/* Brand Logo */}
+        <div
+          onClick={() => onNavigate?.('marketplace')}
+          className="flex items-center gap-3 cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-base shadow-sm">
+            C
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '18px', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              CREATIVE<span style={{ color: '#818cf8' }}>HUB</span>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>
-              Talent & Gear Marketplace
-            </div>
+            <span className="text-base font-bold tracking-tight text-slate-900 block leading-tight">
+              CREATIVE <span className="text-blue-600">HUB</span>
+            </span>
+            <span className="text-[10px] text-slate-500 block tracking-wider uppercase font-medium">
+              Talent & Gear Managed Hub
+            </span>
           </div>
         </div>
 
-        {/* Center Links */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '28px', fontSize: '14px', fontWeight: 500, color: 'var(--text-secondary)' }}>
-          <a href="#categories" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}>Categories</a>
-          <a href="#talents" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}>Find Talent</a>
-          <a href="#gear" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}>Rent Gear</a>
-          <a href="#how-it-works" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}>How it Works</a>
+        {/* View Navigation Tabs */}
+        <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
+          <button
+            onClick={() => onNavigate?.('marketplace')}
+            className={`px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              currentView === 'marketplace'
+                ? 'bg-white text-blue-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Marketplace
+          </button>
+
+          {user?.role === 'vendor' && (
+            <button
+              onClick={() => onNavigate?.('vendor_studio')}
+              className={`px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                currentView === 'vendor_studio'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>🎨 My Studio</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => onNavigate?.('admin')}
+            className={`px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentView === 'admin'
+                ? 'bg-white text-purple-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>Admin Panel</span>
+            {pendingCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[10px] font-bold">
+                {pendingCount}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Right Actions & Backend Health */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {/* Backend Status Pill */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 12px',
-            borderRadius: 'var(--radius-full)',
-            fontSize: '12px',
-            background: backendHealthy ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-            border: `1px solid ${backendHealthy ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-            color: backendHealthy ? '#34d399' : '#f87171'
-          }}>
-            {backendHealthy ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-            <span>{backendHealthy ? 'API Connected' : 'API Connecting...'}</span>
-          </div>
-
+        {/* User Actions */}
+        <div className="flex items-center gap-3">
           {user ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 14px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '13px'
-              }}>
-                <User size={16} color="#818cf8" />
-                <span style={{ fontWeight: 600 }}>{user.name || user.mobile}</span>
-                <span style={{
-                  fontSize: '10px',
-                  textTransform: 'uppercase',
-                  padding: '2px 6px',
-                  background: 'var(--primary)',
-                  borderRadius: '4px'
-                }}>{user.role}</span>
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:block text-right">
+                <p className="text-xs font-semibold text-slate-800 leading-tight">{user.name || user.mobile}</p>
+                <span
+                  className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${
+                    isAdmin
+                      ? 'text-purple-700 bg-purple-50 border-purple-200'
+                      : 'text-blue-700 bg-blue-50 border-blue-200'
+                  }`}
+                >
+                  {user.role}
+                </span>
               </div>
-              <button onClick={onLogout} className="btn btn-secondary" style={{ padding: '8px 12px' }} title="Log out">
-                <LogOut size={16} />
+              <button
+                onClick={onLogout}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors cursor-pointer"
+              >
+                Sign Out
               </button>
             </div>
           ) : (
-            <button onClick={onOpenAuth} className="btn btn-primary">
-              <Sparkles size={16} />
-              <span>Get Started / Login</span>
+            <button
+              onClick={onOpenAuth}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
+            >
+              Sign In / Join
             </button>
           )}
         </div>
       </div>
-    </nav>
+    </header>
   );
 }

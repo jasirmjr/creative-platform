@@ -1,11 +1,13 @@
 {
+  
   "name": "creative-platform",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "migrate": "node src/config/migrate.js"
+    "migrate": "node src/config/migrate.js",
+    "seed": "node src/config/seed.js"
   },
   "keywords": [],
   "author": "",
