@@ -23,9 +23,12 @@ exports.getRegisteredVendors = async (req, res) => {
         vp.created_at,
         u.name AS owner_name,
         u.mobile,
-        u.email
+        u.email,
+        COALESCE(ROUND(AVG(r.rating), 1), 5.0) AS avg_rating,
+        COUNT(r.id)::int AS review_count
       FROM vendor_profiles vp
       LEFT JOIN users u ON vp.user_id = u.id
+      LEFT JOIN reviews r ON r.vendor_id = vp.id
       WHERE 1=1
     `;
     const params = [];
@@ -41,7 +44,7 @@ exports.getRegisteredVendors = async (req, res) => {
       queryText += ` AND (vp.business_name ILIKE $${params.length} OR u.name ILIKE $${params.length} OR vp.skills ILIKE $${params.length} OR vp.location ILIKE $${params.length})`;
     }
 
-    queryText += ' ORDER BY vp.created_at DESC;';
+    queryText += ' GROUP BY vp.id, u.id ORDER BY vp.created_at DESC;';
 
     const { rows } = await db.query(queryText, params);
     return res.status(200).json({ success: true, count: rows.length, data: rows });

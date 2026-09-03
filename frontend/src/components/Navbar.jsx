@@ -132,12 +132,20 @@ export default function Navbar({
               </button>
             </div>
           ) : (
-            <button
-              onClick={onOpenAuth}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
-            >
-              Sign In / Join
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onOpenAuth('login')}
+                className="px-3.5 py-1.5 text-slate-700 hover:text-slate-900 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Log In
+              </button>
+              <button
+                onClick={() => onOpenAuth('register')}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
+              >
+                Register
+              </button>
+            </div>
           )}
         </div>
       </div>

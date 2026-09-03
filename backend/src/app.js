@@ -1,13 +1,17 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const path = require('path');
 
 const app = express();
 
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve local device uploads statically
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Mount Auth Routes
 app.use('/api/v1/auth', require('./routes/auth.routes'));
@@ -16,6 +20,8 @@ app.use('/api/v1/resources', require('./routes/resource.routes'));
 app.use('/api/v1/bookings', require('./routes/booking.routes'));
 app.use('/api/v1/vendors', require('./routes/vendor.routes'));
 app.use('/api/v1/portfolios', require('./routes/portfolio.routes'));
+app.use('/api/v1/reviews', require('./routes/review.routes'));
+app.use('/api/v1/schedule', require('./routes/schedule.routes'));
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Creative Talent API is healthy' });

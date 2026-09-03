@@ -10,6 +10,8 @@ import CartModal from './components/CartModal';
 export default function App() {
   const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authInitialMode, setAuthInitialMode] = useState('login');
+  const [authInitialRole, setAuthInitialRole] = useState('customer');
   const getDefaultView = (userData) => {
     if (!userData) return 'marketplace';
     if (userData.role === 'admin' || userData.role === 'super_admin') return 'admin';
@@ -51,7 +53,7 @@ export default function App() {
 
   const handleAddToCart = (item) => {
     const defaultStart = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    const defaultEnd = new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0];
+    const defaultEnd = item.start_date || defaultStart;
 
     const cartItem = {
       ...item,
@@ -85,7 +87,7 @@ export default function App() {
 
   const handleCheckoutSuccess = (createdBookings) => {
     setCurrentView('customer_projects');
-    alert(`Success! ${createdBookings?.length || 1} production hold request(s) submitted for admin review.`);
+    alert(`Success! ${createdBookings?.length || 1} booking(s) confirmed and scheduled!`);
   };
 
   const fetchPendingVendorsCount = useCallback(async () => {
@@ -142,7 +144,9 @@ export default function App() {
     setVendorRefreshKey((prev) => prev + 1);
   };
 
-  const handleOpenAuth = () => {
+  const handleOpenAuth = (mode = 'login', role = 'customer') => {
+    setAuthInitialMode(mode);
+    setAuthInitialRole(role);
     setIsAuthModalOpen(true);
   };
 
@@ -180,6 +184,8 @@ export default function App() {
             user={user}
             onOpenAuth={handleOpenAuth}
             onBackToMarketplace={() => setCurrentView('marketplace')}
+            onAddToCart={handleAddToCart}
+            onOpenCart={() => setIsCartOpen(true)}
           />
         ) : (
           <Dashboard
@@ -197,6 +203,8 @@ export default function App() {
 
       <AuthModal
         isOpen={isAuthModalOpen}
+        initialMode={authInitialMode}
+        initialRole={authInitialRole}
         onClose={() => setIsAuthModalOpen(false)}
         onSuccess={handleLoginSuccess}
       />

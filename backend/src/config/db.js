@@ -31,6 +31,39 @@ const syncBlueprintSchema = async () => {
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(10, 2) DEFAULT 0;
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS advance_amount NUMERIC(10, 2) DEFAULT 0;
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES vendor_profiles(id);
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check;
+      ALTER TABLE bookings ADD CONSTRAINT bookings_status_check CHECK (status IN ('pending_checkout', 'under_review', 'approved', 'confirmed', 'in_progress', 'completed', 'cancelled', 'rejected'));
+
+      CREATE TABLE IF NOT EXISTS otps (
+        mobile VARCHAR(30) PRIMARY KEY,
+        otp VARCHAR(10) NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS reviews (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+        customer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        vendor_id UUID NOT NULL REFERENCES vendor_profiles(id) ON DELETE CASCADE,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        comment TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT unique_booking_review UNIQUE (booking_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS vendor_blackout_dates (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        vendor_id UUID NOT NULL REFERENCES vendor_profiles(id) ON DELETE CASCADE,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        reason VARCHAR(255) DEFAULT 'Unavailable / Busy',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_blackout_vendor_dates 
+      ON vendor_blackout_dates(vendor_id, start_date, end_date);
     `;
     await pool.query(alterQuery);
 

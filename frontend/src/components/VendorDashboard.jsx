@@ -14,6 +14,23 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
   const [bookingFilter, setBookingFilter] = useState('all');
   const [updatingBookingId, setUpdatingBookingId] = useState(null);
 
+  // Reviews State
+  const [studioReviews, setStudioReviews] = useState([]);
+  const [studioAvgRating, setStudioAvgRating] = useState(5.0);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+
+  // Schedule & Calendar State
+  const [scheduleData, setScheduleData] = useState({ bookings: [], blackouts: [] });
+  const [loadingSchedule, setLoadingSchedule] = useState(true);
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
+
+  // Decline Booking Modal State
+  const [declineModal, setDeclineModal] = useState({
+    isOpen: false,
+    booking: null,
+  });
+
   // Vendor Profile State
   const [vendorProfile, setVendorProfile] = useState(null);
   const [editProfileData, setEditProfileData] = useState({
@@ -95,10 +112,71 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
     }
   };
 
+  // Load Studio Reviews
+  const fetchStudioReviews = async () => {
+    if (!token) return;
+    setLoadingReviews(true);
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/reviews/studio', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStudioReviews(data.data || []);
+        setStudioAvgRating(data.average_rating || 5.0);
+      }
+    } catch (err) {
+      console.error('Failed to load studio reviews:', err);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  // Load Vendor Schedule & Availability Calendar
+  const fetchSchedule = async () => {
+    if (!token) return;
+    setLoadingSchedule(true);
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/schedule/my', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setScheduleData({
+          bookings: data.bookings || [],
+          blackouts: data.blackouts || [],
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load schedule:', err);
+    } finally {
+      setLoadingSchedule(false);
+    }
+  };
+
+  // Unblock a blackout date
+  const handleUnblockDate = async (blackoutId) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:5000/api/v1/schedule/block/${blackoutId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to unblock dates');
+      setNotification({ type: 'success', message: 'Dates unblocked and opened for client bookings!' });
+      fetchSchedule();
+    } catch (err) {
+      setNotification({ type: 'error', message: err.message });
+    }
+  };
+
   useEffect(() => {
     fetchProfile();
     fetchPortfolio();
     fetchBookings();
+    fetchStudioReviews();
+    fetchSchedule();
   }, [token]);
 
   // Handle Availability Toggle (Section 12 of Blueprint)
@@ -168,8 +246,8 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
     }
   };
 
-  // Handle Booking Status Update
-  const handleUpdateBookingStatus = async (bookingId, newStatus) => {
+  // Handle Booking Status Update (Accept or Decline with reason)
+  const handleUpdateBookingStatus = async (bookingId, newStatus, rejectionReason = '') => {
     setUpdatingBookingId(bookingId);
     try {
       const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/${bookingId}/status`, {
@@ -178,18 +256,24 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({
+          status: newStatus,
+          rejection_reason: rejectionReason || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to update booking status');
 
       setBookings((prev) =>
-        prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus } : b))
+        prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus, rejection_reason: rejectionReason } : b))
       );
       setNotification({
         type: 'success',
-        message: `Booking request updated to "${newStatus.replace('_', ' ').toUpperCase()}".`,
+        message: newStatus === 'confirmed'
+          ? 'You accepted the booking! The shoot is officially confirmed.'
+          : 'You declined the booking request. The client and platform admin have been notified with your explanation.',
       });
+      fetchSchedule();
     } catch (err) {
       setNotification({ type: 'error', message: err.message });
     } finally {
@@ -212,7 +296,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
     if (bookingFilter === 'requests') return b.status === 'under_review' || b.status === 'availability_check' || b.status === 'new_request';
     if (bookingFilter === 'confirmed') return b.status === 'confirmed' || b.status === 'in_progress';
     if (bookingFilter === 'completed') return b.status === 'completed';
-    if (bookingFilter === 'cancelled') return b.status === 'cancelled';
+    if (bookingFilter === 'cancelled') return b.status === 'cancelled' || b.status === 'rejected';
     return true;
   });
 
@@ -378,6 +462,24 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
           <span className="text-xs text-slate-500 mt-1 block">Assigned active productions</span>
         </div>
 
+        <div
+          onClick={() => setActiveTab('reviews')}
+          className={`p-5 rounded-xl border transition-all cursor-pointer ${
+            activeTab === 'reviews'
+              ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
+              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+          }`}
+        >
+          <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Client Rating</span>
+          <p className="text-3xl font-bold text-slate-900 mt-2 flex items-center gap-1.5">
+            <span className="text-amber-500">★</span>
+            <span>{studioAvgRating}</span>
+          </p>
+          <span className="text-xs text-slate-500 mt-1 block">
+            {studioReviews.length} {studioReviews.length === 1 ? 'Verified Review' : 'Verified Reviews'}
+          </span>
+        </div>
+
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Gross Production Total</span>
           <p className="text-3xl font-bold text-slate-900 mt-2 font-mono">₹{totalValue.toLocaleString()}</p>
@@ -415,6 +517,38 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
           {pendingRequestsCount > 0 && (
             <span className="text-[10px] px-2 py-0.2 bg-amber-500 text-white rounded-full font-bold">
               {pendingRequestsCount} new
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('reviews')}
+          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+            activeTab === 'reviews'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <span>⭐ Client Reviews</span>
+          <span className={`text-[10px] px-2 py-0.2 rounded-full font-bold ${
+            activeTab === 'reviews' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
+          }`}>
+            {studioReviews.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('schedule')}
+          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+            activeTab === 'schedule'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <span>📅 Schedule & Calendar</span>
+          {scheduleData.blackouts.length > 0 && (
+            <span className="text-[10px] px-2 py-0.2 bg-amber-500 text-white rounded-full font-bold">
+              {scheduleData.blackouts.length} off-duty
             </span>
           )}
         </button>
@@ -477,17 +611,38 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                   key={work.id}
                   className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
                 >
-                  <div className="relative aspect-video bg-slate-100 overflow-hidden">
-                    <img
-                      src={work.media_url}
-                      alt={work.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800&auto=format&fit=crop&q=60';
-                      }}
-                    />
-                    <span className="absolute top-2.5 right-2.5 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-black/60 text-white backdrop-blur-xs">
-                      {work.media_type || 'image'}
+                  <div className="relative aspect-video bg-slate-900 overflow-hidden flex items-center justify-center">
+                    {work.media_type === 'video' ? (
+                      <video
+                        src={work.media_url}
+                        controls
+                        className="w-full h-full object-cover"
+                      />
+                    ) : work.media_type === 'document' ? (
+                      <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center p-4 text-center">
+                        <span className="text-3xl mb-1">📄</span>
+                        <span className="text-xs font-bold text-slate-800 line-clamp-1">{work.title}</span>
+                        <a
+                          href={work.media_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                        >
+                          Open PDF Lookbook &rarr;
+                        </a>
+                      </div>
+                    ) : (
+                      <img
+                        src={work.media_url}
+                        alt={work.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          e.target.src = 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800&auto=format&fit=crop&q=60';
+                        }}
+                      />
+                    )}
+                    <span className="absolute top-2.5 right-2.5 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-black/70 text-white backdrop-blur-xs">
+                      {work.media_type === 'document' ? 'PDF Document' : work.media_type === 'video' ? 'Video' : 'Photograph'}
                     </span>
                   </div>
 
@@ -585,12 +740,12 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : b.status === 'completed'
                             ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : b.status === 'cancelled'
-                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : b.status === 'rejected' || b.status === 'cancelled'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200 font-black'
                             : 'bg-amber-50 text-amber-700 border-amber-200'
                         }`}
                       >
-                        {b.status.replace('_', ' ')}
+                        {b.status === 'rejected' ? 'Declined / Rejected' : b.status.replace('_', ' ')}
                       </span>
                       <span className="text-xs font-semibold text-slate-500">
                         {b.category_name}
@@ -624,6 +779,16 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                         </span>
                       </div>
                     </div>
+
+                    {/* Rejection Note Display */}
+                    {b.rejection_reason && (
+                      <div className="mt-3 p-3 bg-rose-50/80 border border-rose-200 rounded-xl text-xs text-rose-950">
+                        <strong className="font-semibold text-rose-800 block text-[11px] uppercase tracking-wider mb-0.5">
+                          Decline Note Shared with Client & Admin:
+                        </strong>
+                        <p className="italic font-medium">"{b.rejection_reason}"</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions */}
@@ -633,16 +798,18 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                         <button
                           onClick={() => handleUpdateBookingStatus(b.id, 'confirmed')}
                           disabled={updatingBookingId === b.id}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                         >
-                          {updatingBookingId === b.id ? 'Confirming...' : '✓ Confirm Available'}
+                          <span>✓</span>
+                          <span>{updatingBookingId === b.id ? 'Accepting...' : 'Accept Booking'}</span>
                         </button>
                         <button
-                          onClick={() => handleUpdateBookingStatus(b.id, 'cancelled')}
+                          onClick={() => setDeclineModal({ isOpen: true, booking: b })}
                           disabled={updatingBookingId === b.id}
-                          className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                          className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
                         >
-                          Decline
+                          <span>✕</span>
+                          <span>Decline Request</span>
                         </button>
                       </>
                     )}
@@ -657,7 +824,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                           Mark as Completed
                         </button>
                         <button
-                          onClick={() => handleUpdateBookingStatus(b.id, 'cancelled')}
+                          onClick={() => setDeclineModal({ isOpen: true, booking: b })}
                           disabled={updatingBookingId === b.id}
                           className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl border border-slate-200 transition-all cursor-pointer disabled:opacity-50"
                         >
@@ -672,9 +839,9 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                       </span>
                     )}
 
-                    {b.status === 'cancelled' && (
+                    {(b.status === 'cancelled' || b.status === 'rejected') && (
                       <span className="text-xs font-semibold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200">
-                        Cancelled
+                        {b.status === 'rejected' ? 'Declined / Rejected' : 'Cancelled'}
                       </span>
                     )}
                   </div>
@@ -789,6 +956,405 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
         </div>
       )}
 
+      {/* ================= TAB: CLIENT REVIEWS ================= */}
+      {activeTab === 'reviews' && (
+        <div className="space-y-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Verified Client Reviews & Ratings</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Client feedback and ratings submitted after completed productions.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl self-start sm:self-auto">
+              <span className="text-2xl text-amber-500">★</span>
+              <div>
+                <span className="text-base font-black text-slate-900 leading-none block">
+                  {studioAvgRating} / 5.0
+                </span>
+                <span className="text-[10px] text-amber-800 font-semibold block">
+                  Based on {studioReviews.length} verified {studioReviews.length === 1 ? 'shoot' : 'shoots'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {loadingReviews ? (
+            <div className="py-16 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl">
+              Loading client reviews...
+            </div>
+          ) : studioReviews.length === 0 ? (
+            <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center shadow-xs">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center text-xl mx-auto mb-3">
+                ⭐
+              </div>
+              <h3 className="text-sm font-bold text-slate-800">No Client Reviews Yet</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                Once your clients mark assigned shoots as completed and submit their feedback, their verified reviews will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {studioReviews.map((rev) => (
+                <div
+                  key={rev.id}
+                  className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-amber-400 text-sm">{'★'.repeat(rev.rating)}</span>
+                        <span className="text-xs font-bold text-slate-800">({rev.rating}/5)</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400">
+                        {new Date(rev.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-700 leading-relaxed italic bg-slate-50 border border-slate-100 p-3.5 rounded-xl">
+                      &ldquo;{rev.comment}&rdquo;
+                    </p>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-medium uppercase">Client</span>
+                      <strong className="text-slate-800">{rev.customer_name}</strong>
+                    </div>
+                    {rev.project_name && (
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block font-medium uppercase">Production</span>
+                        <span className="text-slate-600 font-medium">{rev.project_name}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================= TAB: SCHEDULE & CALENDAR ================= */}
+      {activeTab === 'schedule' && (
+        <div className="space-y-6">
+          {/* Header & Actions */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-900">Studio Schedule & Availability Calendar</h2>
+                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full uppercase">
+                  Live Calendar
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                Confirmed shoots are automatically booked in red. Mark personal time off, gear maintenance, or outside client shoots as unavailable so platform customers cannot book those dates.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsBlockModalOpen(true)}
+              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-2 self-start sm:self-auto whitespace-nowrap"
+            >
+              <span>+ Block Off Dates</span>
+            </button>
+          </div>
+
+          {/* Calendar Navigation & Legend */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 mb-4 border-b border-slate-100">
+              {/* Month Navigator */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(currentCalendarDate);
+                    d.setMonth(d.getMonth() - 1);
+                    setCurrentCalendarDate(d);
+                  }}
+                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors text-xs font-bold border border-slate-200 cursor-pointer"
+                  title="Previous Month"
+                >
+                  &larr; Prev
+                </button>
+
+                <h3 className="text-base font-black text-slate-900 min-w-[160px] text-center">
+                  {currentCalendarDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(currentCalendarDate);
+                    d.setMonth(d.getMonth() + 1);
+                    setCurrentCalendarDate(d);
+                  }}
+                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors text-xs font-bold border border-slate-200 cursor-pointer"
+                  title="Next Month"
+                >
+                  Next &rarr;
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentCalendarDate(new Date())}
+                  className="ml-1 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors cursor-pointer"
+                >
+                  Today
+                </button>
+              </div>
+
+              {/* Legend */}
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-md bg-rose-500 inline-block"></span>
+                  <span className="text-slate-700 font-medium">Confirmed Shoot</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-md bg-amber-500 inline-block"></span>
+                  <span className="text-slate-700 font-medium">Off-Duty / Blocked</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-md bg-emerald-500 inline-block"></span>
+                  <span className="text-slate-700 font-medium">Open / Available</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Calendar Days Grid */}
+            {(() => {
+              const year = currentCalendarDate.getFullYear();
+              const month = currentCalendarDate.getMonth();
+              const firstDayOfWeek = new Date(year, month, 1).getDay();
+              const daysInMonth = new Date(year, month + 1, 0).getDate();
+              const todayStr = new Date().toISOString().split('T')[0];
+
+              const days = [];
+              for (let i = 0; i < firstDayOfWeek; i++) {
+                days.push(null);
+              }
+              for (let d = 1; d <= daysInMonth; d++) {
+                days.push(d);
+              }
+
+              const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+              return (
+                <div>
+                  <div className="grid grid-cols-7 gap-1.5 text-center mb-2">
+                    {dayNames.map((n) => (
+                      <div key={n} className="text-[11px] font-bold text-slate-400 uppercase py-1">
+                        {n}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-2">
+                    {days.map((d, index) => {
+                      if (d === null) {
+                        return (
+                          <div
+                            key={`empty-${index}`}
+                            className="min-h-[85px] bg-slate-50/50 rounded-xl border border-transparent"
+                          />
+                        );
+                      }
+
+                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                      const isToday = dateStr === todayStr;
+
+                      // Check bookings
+                      const activeBooking = scheduleData.bookings.find((b) => {
+                        if (b.status === 'cancelled' || b.status === 'rejected') return false;
+                        const s = b.start_date.split('T')[0];
+                        const e = b.end_date.split('T')[0];
+                        return dateStr >= s && dateStr <= e;
+                      });
+
+                      // Check blackouts
+                      const activeBlackout = scheduleData.blackouts.find((bl) => {
+                        const s = bl.start_date.split('T')[0];
+                        const e = bl.end_date.split('T')[0];
+                        return dateStr >= s && dateStr <= e;
+                      });
+
+                      return (
+                        <div
+                          key={dateStr}
+                          className={`min-h-[90px] p-2 rounded-xl border transition-all flex flex-col justify-between ${
+                            activeBooking
+                              ? 'bg-rose-50/70 border-rose-200 ring-1 ring-rose-300/40'
+                              : activeBlackout
+                              ? 'bg-amber-50/70 border-amber-200 ring-1 ring-amber-300/40'
+                              : 'bg-white border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${
+                                isToday
+                                  ? 'bg-slate-900 text-white'
+                                  : 'text-slate-800'
+                              }`}
+                            >
+                              {d}
+                            </span>
+                            {activeBooking && (
+                              <span className="text-[9px] font-bold text-rose-700 uppercase tracking-tight bg-rose-100/80 px-1.5 py-0.5 rounded">
+                                Booked
+                              </span>
+                            )}
+                            {activeBlackout && (
+                              <button
+                                type="button"
+                                onClick={() => handleUnblockDate(activeBlackout.id)}
+                                title="Click to unblock this date"
+                                className="text-[10px] text-amber-800 hover:text-rose-700 bg-amber-100 hover:bg-amber-200 px-1 rounded cursor-pointer transition-colors"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="mt-1 flex-1 flex flex-col justify-end">
+                            {activeBooking ? (
+                              <div className="text-[10px] text-rose-900 font-semibold truncate leading-tight">
+                                <span className="block truncate">{activeBooking.project_name || 'Shoot'}</span>
+                                <span className="text-[9px] text-rose-600 font-normal block truncate">
+                                  {activeBooking.customer_name}
+                                </span>
+                              </div>
+                            ) : activeBlackout ? (
+                              <div className="text-[10px] text-amber-900 font-semibold truncate leading-tight">
+                                <span className="block truncate">{activeBlackout.reason || 'Off-Duty'}</span>
+                                <span className="text-[9px] text-amber-700 font-normal block">Unavailable</span>
+                              </div>
+                            ) : (
+                              <span className="text-[9px] text-emerald-600 font-medium">✓ Available</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Schedule Breakdown: Active Blackouts & Upcoming Shoots */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Active Blackouts */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>🟠 Off-Duty & Blocked Ranges</span>
+                  <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.2 rounded-full font-bold">
+                    {scheduleData.blackouts.length}
+                  </span>
+                </h3>
+                <button
+                  onClick={() => setIsBlockModalOpen(true)}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                >
+                  + Add Block
+                </button>
+              </div>
+
+              {scheduleData.blackouts.length === 0 ? (
+                <div className="py-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                  <span className="text-xl mb-1 block">📅</span>
+                  <p className="text-xs text-slate-500 font-medium">No blocked dates.</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Your studio is available to accept bookings on all open days.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                  {scheduleData.blackouts.map((bl) => (
+                    <div
+                      key={bl.id}
+                      className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div>
+                        <strong className="text-slate-900 block font-bold">{bl.reason || 'Off-Duty'}</strong>
+                        <span className="text-[11px] text-slate-500 mt-0.5 block">
+                          {new Date(bl.start_date).toLocaleDateString()} &rarr; {new Date(bl.end_date).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleUnblockDate(bl.id)}
+                        className="px-2.5 py-1 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap"
+                      >
+                        Unblock
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Confirmed Platform Shoots */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>🔴 Scheduled Client Shoots</span>
+                  <span className="text-xs bg-rose-100 text-rose-800 px-2 py-0.2 rounded-full font-bold">
+                    {scheduleData.bookings.length}
+                  </span>
+                </h3>
+              </div>
+
+              {scheduleData.bookings.length === 0 ? (
+                <div className="py-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                  <span className="text-xl mb-1 block">🎬</span>
+                  <p className="text-xs text-slate-500 font-medium">No confirmed shoots scheduled yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                  {scheduleData.bookings.map((bk) => (
+                    <div
+                      key={bk.id}
+                      className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div>
+                        <strong className="text-slate-900 block font-bold">{bk.project_name}</strong>
+                        <span className="text-[11px] text-slate-500 mt-0.5 block">
+                          Client: {bk.customer_name || 'Client'} &bull; {new Date(bk.start_date).toLocaleDateString()} &rarr; {new Date(bk.end_date).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-slate-800 font-mono block">
+                          ₹{Number(bk.total_amount || 0).toLocaleString()}
+                        </span>
+                        <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 inline-block mt-0.5">
+                          {bk.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BLOCK DATES MODAL */}
+      {isBlockModalOpen && (
+        <BlockDatesModal
+          isOpen={isBlockModalOpen}
+          onClose={() => setIsBlockModalOpen(false)}
+          onSuccess={() => {
+            setIsBlockModalOpen(false);
+            setNotification({ type: 'success', message: 'Dates successfully marked as unavailable!' });
+            fetchSchedule();
+          }}
+          token={token}
+        />
+      )}
+
       {/* UPLOAD WORK MODAL */}
       {isUploadModalOpen && (
         <UploadWorkModal
@@ -802,7 +1368,316 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
           token={token}
         />
       )}
+
+      {/* DECLINE / REJECT BOOKING MODAL */}
+      {declineModal.isOpen && (
+        <DeclineBookingModal
+          isOpen={declineModal.isOpen}
+          booking={declineModal.booking}
+          onClose={() => setDeclineModal({ isOpen: false, booking: null })}
+          onConfirm={async (bookingId, reason) => {
+            await handleUpdateBookingStatus(bookingId, 'rejected', reason);
+            setDeclineModal({ isOpen: false, booking: null });
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+// Sub-component: Block Dates Modal
+function BlockDatesModal({ isOpen, onClose, onSuccess, token }) {
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const presets = [
+    { label: '🎬 External Client Shoot', text: 'External Client Shoot' },
+    { label: '🏖️ Personal Vacation / Off-Duty', text: 'Personal Vacation / Off-Duty' },
+    { label: '🛠️ Equipment Maintenance', text: 'Camera & Lighting Servicing' },
+    { label: '✈️ Traveling / On Location', text: 'Traveling for Outstation Production' },
+  ];
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!startDate || !endDate) {
+      setError('Please select both a start date and an end date.');
+      return;
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+      setError('Start date cannot be after end date.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/schedule/block', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          start_date: startDate,
+          end_date: endDate,
+          reason: reason.trim() || 'Unavailable / Off-Duty',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to block dates');
+
+      onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md p-6 sm:p-7 shadow-2xl relative">
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 text-base cursor-pointer"
+        >
+          ✕
+        </button>
+
+        <div className="mb-5">
+          <span className="text-[10px] uppercase font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+            Availability Control
+          </span>
+          <h2 className="text-lg font-bold text-slate-900 mt-2">
+            Block Off Dates on Calendar
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Customers will not be able to book these dates. Use this when you have outside projects or time off.
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 text-xs text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-xl font-medium">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Start Date *</label>
+              <input
+                type="date"
+                required
+                min={todayStr}
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  if (!endDate || e.target.value > endDate) setEndDate(e.target.value);
+                }}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">End Date *</label>
+              <input
+                type="date"
+                required
+                min={startDate || todayStr}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Reason Presets</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {presets.map((p, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setReason(p.text)}
+                  className="px-2.5 py-1.5 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 border border-slate-200 text-slate-700 text-[11px] font-medium rounded-lg text-left transition-colors cursor-pointer"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Reason / Notes</label>
+            <input
+              type="text"
+              placeholder="e.g. Commercial Shoot Outside Platform / Holiday"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-amber-500"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-xs mt-2"
+          >
+            {submitting ? 'Marking Dates...' : 'Mark Dates as Unavailable'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Sub-component: Decline Booking Modal
+function DeclineBookingModal({ isOpen, onClose, onConfirm, booking }) {
+  const [reasonPreset, setReasonPreset] = useState('');
+  const [customNote, setCustomNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  if (!isOpen || !booking) return null;
+
+  const presets = [
+    { label: '🎬 Equipment / Crew already committed to another shoot', text: 'Equipment & crew already committed to another commercial production' },
+    { label: '⏳ Insufficient prep or lead time for project scale', text: 'Insufficient preparation and lead time required for this project scale' },
+    { label: '📍 Shoot location outside our service coverage', text: 'Shoot location is outside our primary service coverage area' },
+    { label: '🏖️ Personal schedule / Crew off-duty holiday', text: 'Personal schedule / crew holiday unavailability' },
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const finalReason = [reasonPreset, customNote.trim()].filter(Boolean).join(' — ');
+    if (!finalReason) {
+      setError('Please select a reason or provide an explanation for the client.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await onConfirm(booking.id, finalReason);
+    } catch (err) {
+      setError(err.message || 'Failed to decline booking request');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg p-6 sm:p-7 shadow-2xl relative">
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 text-base cursor-pointer"
+        >
+          ✕
+        </button>
+
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-sm font-bold">
+              ✕
+            </span>
+            <h2 className="text-base font-bold text-slate-900">Decline Booking Request</h2>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Provide an explanation for declining this shoot request. This reason will be displayed in the <strong>Client Dashboard</strong> and <strong>Admin Panel</strong>.
+          </p>
+        </div>
+
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-xs">
+          <div className="flex justify-between items-center mb-1">
+            <strong className="text-slate-800">{booking.project_name || booking.resource_title}</strong>
+            <span className="font-mono font-bold text-slate-900">₹{Number(booking.total_amount).toLocaleString()}</span>
+          </div>
+          <div className="text-[11px] text-slate-500">
+            Client: <strong>{booking.customer_name || 'Client'}</strong> &bull; Dates:{' '}
+            <strong>
+              {new Date(booking.start_date).toLocaleDateString()} &rarr; {new Date(booking.end_date).toLocaleDateString()}
+            </strong>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Select Preset Reason:
+            </label>
+            <div className="space-y-1.5">
+              {presets.map((p) => (
+                <button
+                  key={p.text}
+                  type="button"
+                  onClick={() => {
+                    setReasonPreset(p.text);
+                    setError('');
+                  }}
+                  className={`w-full text-left p-2.5 rounded-xl border text-xs transition-all cursor-pointer flex items-center justify-between ${
+                    reasonPreset === p.text
+                      ? 'bg-rose-50 border-rose-300 text-rose-900 font-semibold ring-1 ring-rose-200'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>{p.label}</span>
+                  {reasonPreset === p.text && <span className="text-rose-600 font-bold">✓</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Custom Message / Details for Client (Optional):
+            </label>
+            <textarea
+              rows={2}
+              value={customNote}
+              onChange={(e) => {
+                setCustomNote(e.target.value);
+                setError('');
+              }}
+              placeholder="e.g. We are shooting an outstation commercial on those dates. We would love to collaborate on future projects!"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-rose-500 focus:bg-white transition-all"
+            />
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+            >
+              Keep Request
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || (!reasonPreset && !customNote.trim())}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <span>{submitting ? 'Declining...' : 'Confirm & Decline Request'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -810,8 +1685,11 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
 function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [uploadSource, setUploadSource] = useState('device'); // 'device' | 'url'
+  const [mediaType, setMediaType] = useState('image'); // 'image' | 'video' | 'document'
   const [mediaUrl, setMediaUrl] = useState('');
-  const [mediaType, setMediaType] = useState('image');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -821,48 +1699,117 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
       url: 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800&auto=format&fit=crop&q=80',
       title: 'Sony FX3 Cinema Kit Rigged on Gimbal',
       desc: 'Full documentary camera build with wireless focus, matte box, and V-mount battery system.',
+      type: 'image',
     },
     {
       label: 'Fashion Shoot',
       url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80',
       title: 'Editorial High-Fashion Lookbook',
       desc: 'Studio editorial portrait shot with Profoto softboxes and prime 85mm lens.',
+      type: 'image',
     },
     {
       label: 'Anamorphic Cine Still',
       url: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=800&auto=format&fit=crop&q=80',
       title: 'Narrative Short Film Still',
       desc: 'Cinematography frame captured with anamorphic glass in low-light night exterior.',
+      type: 'image',
     },
     {
       label: 'Color Grading Suite',
       url: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80',
       title: 'DaVinci Resolve HDR Color Grade',
       desc: 'Commercial beauty pass and cinematic curve manipulation on broadcast monitors.',
+      type: 'image',
     },
   ];
 
   if (!isOpen) return null;
 
+  // Handle local device file selection
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+    setError('');
+
+    // Auto-detect type
+    const mime = file.type;
+    const fname = file.name.toLowerCase();
+
+    if (mime.startsWith('video/') || fname.endsWith('.mp4') || fname.endsWith('.mov') || fname.endsWith('.webm')) {
+      setMediaType('video');
+    } else if (mime === 'application/pdf' || fname.endsWith('.pdf')) {
+      setMediaType('document');
+    } else if (mime.startsWith('image/')) {
+      setMediaType('image');
+    }
+
+    // Generate local preview URL
+    if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+      setFilePreview(URL.createObjectURL(file));
+    } else {
+      setFilePreview('');
+    }
+
+    // Auto-fill title if empty
+    if (!title.trim()) {
+      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+      setTitle(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (uploadSource === 'device' && !selectedFile) {
+      setError('Please select an image, video, or PDF file from your device.');
+      return;
+    }
+
+    if (uploadSource === 'url' && !mediaUrl.trim()) {
+      setError('Please enter a valid media URL.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/portfolios', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title,
-          description,
-          media_url: mediaUrl,
-          media_type: mediaType,
-        }),
-      });
+      let res;
+
+      if (uploadSource === 'device' && selectedFile) {
+        // Upload device file via multipart/form-data
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('media_type', mediaType);
+
+        res = await fetch('http://127.0.0.1:5000/api/v1/portfolios', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+      } else {
+        // Submit via media URL
+        res = await fetch('http://127.0.0.1:5000/api/v1/portfolios', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title,
+            description,
+            media_url: mediaUrl,
+            media_type: mediaType,
+          }),
+        });
+      }
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to upload work');
@@ -876,15 +1823,18 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
   };
 
   const applyPreset = (p) => {
+    setUploadSource('url');
     setTitle(p.title);
     setDescription(p.desc);
     setMediaUrl(p.url);
-    setMediaType('image');
+    setMediaType(p.type || 'image');
+    setSelectedFile(null);
+    setFilePreview('');
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg p-6 sm:p-8 shadow-xl relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg p-6 sm:p-8 shadow-2xl relative my-8 max-h-[92vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 text-base cursor-pointer"
@@ -900,7 +1850,7 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
             Upload Work to Gallery
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Showcase your best cinematography, commercial photography, or rental gear to prospective clients.
+            Upload photos, showreel videos, or PDF treatment lookbooks directly from your device.
           </p>
         </div>
 
@@ -910,80 +1860,224 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
           </div>
         )}
 
-        {/* Presets Row */}
-        <div className="mb-5 bg-slate-50 border border-slate-200 rounded-xl p-3">
-          <span className="text-[11px] font-semibold text-slate-700 block mb-2">
-            ✨ Quick Showcase Presets:
-          </span>
-          <div className="flex flex-wrap gap-1.5">
-            {presets.map((p, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => applyPreset(p)}
-                className="px-2.5 py-1 bg-white hover:bg-blue-50 hover:border-blue-300 border border-slate-200 text-slate-700 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+        {/* Upload Source Switcher: Device vs URL */}
+        <div className="grid grid-cols-2 bg-slate-100 p-1 rounded-xl mb-5 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => {
+              setUploadSource('device');
+              setError('');
+            }}
+            className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              uploadSource === 'device'
+                ? 'bg-white text-blue-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>📁</span>
+            <span>Upload from Device</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setUploadSource('url');
+              setError('');
+            }}
+            className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              uploadSource === 'url'
+                ? 'bg-white text-blue-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>🔗</span>
+            <span>Web URL / Presets</span>
+          </button>
         </div>
 
+        {/* Presets Row (Only if URL selected) */}
+        {uploadSource === 'url' && (
+          <div className="mb-5 bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="text-[11px] font-semibold text-slate-700 block mb-2">
+              ✨ Quick Showcase Presets:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {presets.map((p, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => applyPreset(p)}
+                  className="px-2.5 py-1 bg-white hover:bg-blue-50 hover:border-blue-300 border border-slate-200 text-slate-700 text-[11px] font-medium rounded-lg transition-colors cursor-pointer"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Work Title */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Work Title</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Work Title *</label>
             <input
               type="text"
               required
-              placeholder="e.g. Commercial Car Ad / Music Video Stills"
+              placeholder="e.g. Commercial Car Ad / Fashion Lookbook / Cine Reel"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
             />
           </div>
 
+          {/* Media Type Switcher: 3 Options */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Media Type</label>
-            <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Media Format</label>
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setMediaType('image')}
-                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                   mediaType === 'image'
-                    ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-xs'
+                    ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-xs font-bold'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Photograph / Frame
+                <span>📷</span>
+                <span>Photo / Image</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setMediaType('video')}
-                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                   mediaType === 'video'
-                    ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-xs'
+                    ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-xs font-bold'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Video / Showreel
+                <span>🎥</span>
+                <span>Video / Reel</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMediaType('document')}
+                className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                  mediaType === 'document'
+                    ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-xs font-bold'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>📄</span>
+                <span>PDF Lookbook</span>
               </button>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Media Image / Thumbnail URL
-            </label>
-            <input
-              type="url"
-              required
-              placeholder="https://images.unsplash.com/..."
-              value={mediaUrl}
-              onChange={(e) => setMediaUrl(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-            />
-          </div>
+          {/* ================= OPTION 1: DEVICE UPLOAD ZONE ================= */}
+          {uploadSource === 'device' ? (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Select File from Your Device (Images, Videos, or PDFs up to 150MB) *
+              </label>
 
+              <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-slate-50 hover:bg-blue-50/40">
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  accept={
+                    mediaType === 'video'
+                      ? 'video/*'
+                      : mediaType === 'document'
+                      ? 'application/pdf'
+                      : 'image/*,video/*,application/pdf'
+                  }
+                />
+
+                {selectedFile ? (
+                  <div className="flex flex-col items-center">
+                    <span className="text-3xl mb-1">
+                      {mediaType === 'video' ? '🎥' : mediaType === 'document' ? '📄' : '📷'}
+                    </span>
+                    <span className="text-xs font-bold text-slate-900 max-w-xs truncate">
+                      {selectedFile.name}
+                    </span>
+                    <span className="text-[11px] text-slate-500 mt-0.5">
+                      {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB &bull; Click to change file
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-lg mb-2">
+                      ↑
+                    </div>
+                    <span className="text-xs font-bold text-slate-800">
+                      Click to choose image, video, or PDF from device
+                    </span>
+                    <span className="text-[11px] text-slate-400 mt-0.5">
+                      Supports JPG, PNG, MP4, MOV, WEBM, PDF (up to 150MB)
+                    </span>
+                  </>
+                )}
+              </label>
+
+              {/* Live Preview for Device File */}
+              {filePreview && (
+                <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase block mb-1.5">
+                    File Preview:
+                  </span>
+                  {mediaType === 'video' ? (
+                    <video
+                      src={filePreview}
+                      controls
+                      className="w-full max-h-48 object-cover rounded-lg bg-black"
+                    />
+                  ) : (
+                    <img
+                      src={filePreview}
+                      alt="Preview"
+                      className="w-full max-h-44 object-cover rounded-lg"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ================= OPTION 2: URL INPUT ================= */
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Media File / Thumbnail URL *
+              </label>
+              <input
+                type="url"
+                required
+                placeholder="https://images.unsplash.com/... or https://domain.com/video.mp4"
+                value={mediaUrl}
+                onChange={(e) => setMediaUrl(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+              />
+
+              {mediaUrl && mediaType === 'image' && (
+                <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase block mb-1.5">
+                    Live URL Preview:
+                  </span>
+                  <img
+                    src={mediaUrl}
+                    alt="Preview"
+                    className="w-full h-36 object-cover rounded-lg"
+                    onError={(e) => {
+                      e.target.src = 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800&auto=format&fit=crop&q=60';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Description */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Description / Gear / Production Notes
@@ -997,26 +2091,14 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
             />
           </div>
 
-          {mediaUrl && (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-              <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">Live Preview:</span>
-              <img
-                src={mediaUrl}
-                alt="Preview"
-                className="w-full h-36 object-cover rounded-lg"
-                onError={(e) => {
-                  e.target.src = 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800&auto=format&fit=crop&q=60';
-                }}
-              />
-            </div>
-          )}
-
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
           >
-            {submitting ? 'Publishing Work...' : 'Publish to Gallery'}
+            <span>{submitting ? 'Uploading to Gallery...' : 'Publish to Gallery'}</span>
+            <span>&rarr;</span>
           </button>
         </form>
       </div>

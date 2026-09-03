@@ -70,7 +70,7 @@ export default function Dashboard({
 
   const handleOpenVendorModal = () => {
     if (!user) {
-      onOpenAuth();
+      onOpenAuth('register', 'vendor');
       return;
     }
     setIsVendorModalOpen(true);
@@ -141,20 +141,26 @@ export default function Dashboard({
               </button>
             </>
           ) : (
-            <button
-              onClick={handleOpenVendorModal}
-              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-200 transition-colors cursor-pointer"
-            >
-              + Register as Vendor
-            </button>
-          )}
-          {!user && (
-            <button
-              onClick={onOpenAuth}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
-            >
-              Sign In / Get Started
-            </button>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                onClick={() => onOpenAuth('register')}
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
+              >
+                Register as Client
+              </button>
+              <button
+                onClick={() => onOpenAuth('login')}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-200 transition-colors cursor-pointer"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={handleOpenVendorModal}
+                className="px-3 py-2.5 text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors cursor-pointer"
+              >
+                + Register as Vendor
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -217,9 +223,18 @@ export default function Dashboard({
                         ? 'bg-rose-50 text-rose-700 border-rose-200'
                         : 'bg-amber-50 text-amber-700 border-amber-200'
                     }`}>
-                      {vendor.verification_status}
+                      {vendor.verification_status === 'verified' ? '✓ Verified' : vendor.verification_status}
                     </span>
-                    <span className="text-xs font-medium text-slate-500">{vendor.location}</span>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <span className="text-amber-500 font-bold flex items-center gap-0.5">
+                        ★ {vendor.avg_rating || '5.0'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        ({vendor.review_count || 0})
+                      </span>
+                      <span>•</span>
+                      <span>{vendor.location || 'India'}</span>
+                    </div>
                   </div>
 
                   <h3 className="text-base font-bold text-slate-900 mb-1">{vendor.business_name}</h3>

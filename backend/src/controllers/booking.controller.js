@@ -35,6 +35,55 @@ async function resolveResource(resource_id, vendor_id) {
   return null;
 }
 
+// Helper to check date availability against confirmed bookings and vendor blackout dates
+async function validateVendorDateAvailability(vendorId, startDate, endDate) {
+  if (!vendorId || !startDate || !endDate) return { available: true };
+
+  const start = new Date(startDate).toISOString().split('T')[0];
+  const end = new Date(endDate).toISOString().split('T')[0];
+
+  // 1. Check for overlapping confirmed / active bookings
+  const bookingOverlap = await db.query(
+    `SELECT id, project_name, start_date, end_date
+     FROM bookings
+     WHERE vendor_id = $1
+       AND status IN ('confirmed', 'in_progress', 'under_review')
+       AND NOT (end_date <= $2 OR start_date >= $3)
+     LIMIT 1;`,
+    [vendorId, start, end]
+  );
+
+  if (bookingOverlap.rows.length > 0) {
+    const b = bookingOverlap.rows[0];
+    return {
+      available: false,
+      reason: `Vendor is already booked for "${b.project_name}" from ${new Date(b.start_date).toLocaleDateString()} to ${new Date(b.end_date).toLocaleDateString()}.`,
+      conflict_type: 'booking',
+    };
+  }
+
+  // 2. Check for overlapping vendor blackout dates
+  const blackoutOverlap = await db.query(
+    `SELECT id, reason, start_date, end_date
+     FROM vendor_blackout_dates
+     WHERE vendor_id = $1
+       AND NOT (end_date <= $2 OR start_date >= $3)
+     LIMIT 1;`,
+    [vendorId, start, end]
+  );
+
+  if (blackoutOverlap.rows.length > 0) {
+    const bl = blackoutOverlap.rows[0];
+    return {
+      available: false,
+      reason: `Vendor has marked these dates as unavailable (${bl.reason || 'Off-Duty'}) from ${new Date(bl.start_date).toLocaleDateString()} to ${new Date(bl.end_date).toLocaleDateString()}.`,
+      conflict_type: 'blackout',
+    };
+  }
+
+  return { available: true };
+}
+
 // POST /api/v1/bookings
 // Protected: Customer submits Section 11 Project Requirement Form
 exports.createBooking = async (req, res) => {
@@ -66,15 +115,27 @@ exports.createBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Creative professional / gear listing not found.' });
     }
 
-    // 2. Price calculation
+    // 2. Check vendor date availability (Prevent double bookings & respect blackout dates)
+    const targetVendorId = vendor_id || resource?.vendor_id || null;
+    if (targetVendorId) {
+      const availCheck = await validateVendorDateAvailability(targetVendorId, start_date, end_date);
+      if (!availCheck.available) {
+        return res.status(400).json({
+          success: false,
+          message: availCheck.reason,
+          conflict_type: availCheck.conflict_type,
+        });
+      }
+    }
+
+    // 3. Price calculation
     const start = new Date(start_date);
     const end = new Date(end_date);
     const diffDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
     const calculatedAmount = Number(resource.base_price) * diffDays;
     const finalAmount = estimated_budget ? Number(estimated_budget) : calculatedAmount;
 
-    // 3. Insert Managed Booking (initial status: under_review per blueprint)
-    const targetVendorId = vendor_id || resource?.vendor_id || null;
+    // 4. Insert Managed Booking (initial status: confirmed)
     const insertQuery = `
       INSERT INTO bookings (
         customer_id,
@@ -94,7 +155,7 @@ exports.createBooking = async (req, res) => {
         payment_status,
         status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, 'pending', 'under_review')
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, 'pending', 'confirmed')
       RETURNING *;
     `;
     const bookingRes = await db.query(insertQuery, [
@@ -145,6 +206,8 @@ exports.getMyBookings = async (req, res) => {
         b.paid_amount,
         b.payment_status,
         b.status,
+        b.rejection_reason,
+        b.rejected_at,
         b.created_at,
         r.title AS resource_title,
         r.resource_type,
@@ -195,6 +258,8 @@ exports.getVendorBookings = async (req, res) => {
         b.total_amount,
         b.payment_status,
         b.status,
+        b.rejection_reason,
+        b.rejected_at,
         b.created_at,
         COALESCE(r.title, b.project_name, vp.business_name, 'Creative Service') AS resource_title,
         COALESCE(r.resource_type, 'service') AS resource_type,
@@ -238,6 +303,8 @@ exports.getAllBookingsAdmin = async (req, res) => {
         b.paid_amount,
         b.payment_status,
         b.status,
+        b.rejection_reason,
+        b.rejected_at,
         b.created_at,
         r.title AS resource_title,
         r.resource_type,
@@ -282,6 +349,7 @@ exports.adminUpdateBooking = async (req, res) => {
       'in_progress',
       'completed',
       'cancelled',
+      'rejected',
     ];
 
     if (status && !allowedStatuses.includes(status)) {
@@ -382,14 +450,23 @@ exports.processPayment = async (req, res) => {
 };
 
 // PATCH /api/v1/bookings/:id/status
-// Protected: Vendor updates status
+// Protected: Vendor updates status (accept or decline with reason)
 exports.updateBookingStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, rejection_reason } = req.body;
     const userId = req.user.id;
 
-    const allowedStatuses = ['under_review', 'approved', 'confirmed', 'in_progress', 'completed', 'cancelled'];
+    const allowedStatuses = [
+      'under_review',
+      'availability_check',
+      'approved',
+      'confirmed',
+      'in_progress',
+      'completed',
+      'cancelled',
+      'rejected',
+    ];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -409,14 +486,38 @@ exports.updateBookingStatus = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to update this booking.' });
     }
 
-    const { rows } = await db.query(
-      'UPDATE bookings SET status = $1 WHERE id = $2 RETURNING *;',
-      [status, id]
-    );
+    let rows;
+    if (status === 'rejected') {
+      const q = `
+        UPDATE bookings 
+        SET status = $1, rejection_reason = $2, rejected_at = CURRENT_TIMESTAMP 
+        WHERE id = $3 
+        RETURNING *;
+      `;
+      const result = await db.query(q, [status, rejection_reason || 'Declined by creative partner.', id]);
+      rows = result.rows;
+    } else if (status === 'confirmed') {
+      const q = `
+        UPDATE bookings 
+        SET status = $1, rejection_reason = NULL, rejected_at = NULL 
+        WHERE id = $2 
+        RETURNING *;
+      `;
+      const result = await db.query(q, [status, id]);
+      rows = result.rows;
+    } else {
+      const result = await db.query(
+        'UPDATE bookings SET status = $1 WHERE id = $2 RETURNING *;',
+        [status, id]
+      );
+      rows = result.rows;
+    }
 
     return res.status(200).json({
       success: true,
-      message: `Booking status updated to ${status}.`,
+      message: status === 'rejected'
+        ? 'Booking request declined. Reason sent to client.'
+        : `Booking status updated to ${status}.`,
       data: rows[0],
     });
   } catch (error) {
@@ -434,6 +535,25 @@ exports.checkoutCart = async (req, res) => {
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Cart items are required.' });
+    }
+
+    // Pre-validate date availability for all cart items (prevent conflicting bookings)
+    for (const item of items) {
+      const resource = await resolveResource(item.resource_id, item.vendor_id);
+      const targetVendorId = item.vendor_id || resource?.vendor_id || null;
+      const start = new Date(item.start_date || Date.now() + 86400000);
+      const end = new Date(item.end_date || Date.now() + 86400000 * 2);
+
+      if (targetVendorId) {
+        const availCheck = await validateVendorDateAvailability(targetVendorId, start, end);
+        if (!availCheck.available) {
+          return res.status(400).json({
+            success: false,
+            message: `Booking Conflict: ${availCheck.reason}`,
+            conflict_type: availCheck.conflict_type,
+          });
+        }
+      }
     }
 
     const createdBookings = [];
@@ -504,11 +624,45 @@ exports.checkoutCart = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: `${createdBookings.length} booking hold request(s) submitted for admin review!`,
+      message: `${createdBookings.length} booking(s) confirmed and scheduled!`,
       data: createdBookings,
     });
   } catch (error) {
     console.error('Cart Checkout Error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+// GET /api/v1/bookings/all (Admin / Super Admin)
+exports.getAllBookings = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        b.id,
+        b.start_date,
+        b.end_date,
+        b.total_amount,
+        b.status,
+        b.created_at,
+        r.title AS resource_title,
+        r.resource_type,
+        c.name AS category_name,
+        vp.business_name AS provider_name,
+        u_prov.mobile AS provider_mobile,
+        u_cust.name AS client_name,
+        u_cust.mobile AS client_mobile
+      FROM bookings b
+      JOIN resources r ON b.resource_id = r.id
+      JOIN categories c ON r.category_id = c.id
+      JOIN vendor_profiles vp ON r.vendor_id = vp.id
+      JOIN users u_prov ON vp.user_id = u_prov.id
+      JOIN users u_cust ON b.customer_id = u_cust.id
+      ORDER BY b.created_at DESC;
+    `;
+    const { rows } = await db.query(query);
+    return res.status(200).json({ success: true, count: rows.length, data: rows });
+  } catch (error) {
+    console.error('Fetch All Bookings Error:', error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

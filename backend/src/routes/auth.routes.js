@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
-const { verifyToken } = require('../middleware/auth.middleware');
+const { verifyToken, authorizeRoles } = require('../middleware/auth.middleware');
 
 // Public routes for login/registration
 router.post('/send-otp', authController.sendOtp);
@@ -13,5 +13,13 @@ router.post('/admin-login', authController.adminLogin);
 router.get('/me', verifyToken, (req, res) => {
   res.status(200).json({ success: true, user: req.user });
 });
+
+// Admin-only user retrieval
+router.get(
+  '/users',
+  verifyToken,
+  authorizeRoles('admin', 'super_admin'),
+  authController.getAllUsers
+);
 
 module.exports = router;

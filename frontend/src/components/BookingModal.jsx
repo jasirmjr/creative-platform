@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import InteractiveCalendarPicker from './InteractiveCalendarPicker';
 
 export default function BookingModal({ item, isOpen, onClose, onSuccess, token, onOpenAuth }) {
   const [projectName, setProjectName] = useState('');
@@ -11,6 +12,47 @@ export default function BookingModal({ item, isOpen, onClose, onSuccess, token, 
   const [additionalRequirements, setAdditionalRequirements] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [blockedRanges, setBlockedRanges] = useState([]);
+  const [showCalendar, setShowCalendar] = useState(true);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    if (!isOpen || !item) return;
+
+    const vendorId = item.vendor_id || item.id;
+    if (!vendorId) return;
+
+    async function loadAvailability() {
+      try {
+        const res = await fetch(`http://127.0.0.1:5000/api/v1/schedule/vendor/${vendorId}`);
+        const data = await res.json();
+        if (data.success) {
+          setBlockedRanges(data.all_blocked_ranges || []);
+        }
+      } catch (err) {
+        console.error('Failed to load availability in BookingModal:', err);
+      }
+    }
+
+    loadAvailability();
+  }, [isOpen, item]);
+
+  // Check if chosen dates conflict
+  const dateConflict = (() => {
+    if (!startDate || !endDate || blockedRanges.length === 0) return null;
+    const startStr = startDate;
+    const endStr = endDate;
+
+    for (const b of blockedRanges) {
+      const bStart = b.start_date.split('T')[0];
+      const bEnd = b.end_date.split('T')[0];
+      if (!(endStr <= bStart || startStr >= bEnd)) {
+        return b;
+      }
+    }
+    return null;
+  })();
 
   if (!isOpen || !item) return null;
 
@@ -121,6 +163,59 @@ export default function BookingModal({ item, isOpen, onClose, onSuccess, token, 
             />
           </div>
 
+          {/* Date Conflict Alert Banner */}
+          {dateConflict && (
+            <div className="p-3 bg-amber-100/70 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start gap-2.5 animate-fadeIn">
+              <span className="text-base leading-none">⚠️</span>
+              <div>
+                <strong className="font-bold block">Provider Unavailable on Selected Dates:</strong>
+                <p className="mt-0.5 text-xs text-amber-800 leading-relaxed">
+                  The provider is{' '}
+                  {dateConflict.type === 'booking'
+                    ? 'already booked for another project'
+                    : `marked off-duty (${dateConflict.reason || 'Unavailable'})`}{' '}
+                  from <strong>{new Date(dateConflict.start_date).toLocaleDateString()}</strong> to{' '}
+                  <strong>{new Date(dateConflict.end_date).toLocaleDateString()}</strong>.
+                </p>
+                <p className="text-[11px] text-amber-900 mt-1 font-semibold">
+                  &rarr; Please select different shoot dates to proceed.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Interactive Calendar Toggle Header */}
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <span>📅</span>
+              <span>Select Shoot Dates from Calendar</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowCalendar(!showCalendar)}
+              className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition-colors"
+            >
+              <span>📅</span>
+              <span>{showCalendar ? 'Minimize Calendar' : 'Expand Calendar'}</span>
+            </button>
+          </div>
+
+          {/* VISUAL INTERACTIVE CALENDAR */}
+          {showCalendar && (
+            <div className="animate-fadeIn">
+              <InteractiveCalendarPicker
+                startDate={startDate}
+                endDate={endDate}
+                blockedRanges={blockedRanges}
+                minDate={todayStr}
+                onChange={({ start_date, end_date }) => {
+                  setStartDate(start_date);
+                  setEndDate(end_date || start_date);
+                }}
+              />
+            </div>
+          )}
+
           {/* Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -130,9 +225,17 @@ export default function BookingModal({ item, isOpen, onClose, onSuccess, token, 
               <input
                 type="date"
                 required
+                min={todayStr}
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  if (!endDate || e.target.value > endDate) setEndDate(e.target.value);
+                }}
+                className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none transition-all ${
+                  dateConflict
+                    ? 'border-rose-400 ring-2 ring-rose-200 bg-rose-50/20'
+                    : 'border-slate-300 focus:border-blue-600'
+                }`}
               />
             </div>
 
@@ -143,9 +246,14 @@ export default function BookingModal({ item, isOpen, onClose, onSuccess, token, 
               <input
                 type="date"
                 required
+                min={startDate || todayStr}
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none transition-all ${
+                  dateConflict
+                    ? 'border-rose-400 ring-2 ring-rose-200 bg-rose-50/20'
+                    : 'border-slate-300 focus:border-blue-600'
+                }`}
               />
             </div>
           </div>
@@ -183,11 +291,11 @@ export default function BookingModal({ item, isOpen, onClose, onSuccess, token, 
           {/* Estimated Budget */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Estimated Budget (₹) (Optional - Defaults to Provider Rate)
+              Estimated Total Budget (INR)
             </label>
             <input
               type="number"
-              placeholder="e.g. 50000"
+              placeholder={`Base: ₹${Number(item.base_price || 0).toLocaleString()}`}
               value={estimatedBudget}
               onChange={(e) => setEstimatedBudget(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all font-mono"
@@ -225,10 +333,18 @@ export default function BookingModal({ item, isOpen, onClose, onSuccess, token, 
           {/* Submit */}
           <button
             type="submit"
-            disabled={submitting}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm mt-2"
+            disabled={submitting || Boolean(dateConflict)}
+            className={`w-full py-3 text-white text-xs font-semibold rounded-xl transition-all shadow-sm mt-2 flex items-center justify-center gap-1.5 ${
+              dateConflict
+                ? 'bg-amber-600 hover:bg-amber-700 cursor-not-allowed opacity-90'
+                : 'bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50'
+            }`}
           >
-            {submitting ? 'Submitting Requirement...' : 'Submit Requirement for Admin Review'}
+            {dateConflict
+              ? '⚠️ Resolve Date Conflict Before Submitting'
+              : submitting
+              ? 'Submitting Requirement...'
+              : 'Submit Requirement for Admin Review'}
           </button>
         </form>
       </div>

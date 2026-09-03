@@ -8,20 +8,24 @@ export default function ProfessionalDetailModal({
 }) {
   const [portfolio, setPortfolio] = useState([]);
   const [loadingPortfolio, setLoadingPortfolio] = useState(false);
+  const [reviews, setReviews] = useState([]);
+  const [avgRating, setAvgRating] = useState(5.0);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [blockedRanges, setBlockedRanges] = useState([]);
 
   useEffect(() => {
     if (!isOpen || !professional) return;
 
-    async function loadPortfolio() {
-      const vendorId = professional.vendor_id || professional.id;
-      if (!vendorId) return;
+    const vendorId = professional.vendor_id || professional.id;
+    if (!vendorId) return;
 
+    async function loadPortfolio() {
       setLoadingPortfolio(true);
       try {
         const res = await fetch(`http://127.0.0.1:5000/api/v1/portfolios/vendor/${vendorId}`);
         const data = await res.json();
         if (data.success) {
-          setPortfolio(data.data);
+          setPortfolio(data.data || []);
         }
       } catch (err) {
         console.error('Failed to load portfolio works:', err);
@@ -30,7 +34,35 @@ export default function ProfessionalDetailModal({
       }
     }
 
+    async function loadReviews() {
+      try {
+        const res = await fetch(`http://127.0.0.1:5000/api/v1/reviews/vendor/${vendorId}`);
+        const data = await res.json();
+        if (data.success) {
+          setReviews(data.data || []);
+          setAvgRating(data.average_rating || 5.0);
+          setTotalReviews(data.total_reviews || 0);
+        }
+      } catch (err) {
+        console.error('Failed to load reviews:', err);
+      }
+    }
+
+    async function loadAvailability() {
+      try {
+        const res = await fetch(`http://127.0.0.1:5000/api/v1/schedule/vendor/${vendorId}`);
+        const data = await res.json();
+        if (data.success) {
+          setBlockedRanges(data.all_blocked_ranges || []);
+        }
+      } catch (err) {
+        console.error('Failed to load vendor availability:', err);
+      }
+    }
+
     loadPortfolio();
+    loadReviews();
+    loadAvailability();
   }, [isOpen, professional]);
 
   if (!isOpen || !professional) return null;
@@ -122,6 +154,54 @@ export default function ProfessionalDetailModal({
           </div>
         </div>
 
+        {/* Availability & Blackout Dates Alert */}
+        <div className="mb-6 p-4 rounded-xl border transition-all bg-slate-50 border-slate-200">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <span>📅 Calendar & Working Availability</span>
+            </h3>
+            <span
+              className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${
+                blockedRanges.length > 0
+                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}
+            >
+              {blockedRanges.length > 0 ? `${blockedRanges.length} Reserved Period(s)` : '✓ Open for Booking'}
+            </span>
+          </div>
+
+          {blockedRanges.length === 0 ? (
+            <p className="text-xs text-emerald-800 font-medium">
+              This provider has no active blackout dates and is currently accepting bookings on all open days.
+            </p>
+          ) : (
+            <div>
+              <p className="text-xs text-slate-600 mb-2">
+                This provider cannot accept bookings during the following reserved / off-duty periods:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {blockedRanges.map((b, idx) => (
+                  <span
+                    key={idx}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium flex items-center gap-1.5 ${
+                      b.type === 'booking'
+                        ? 'bg-rose-50 text-rose-800 border-rose-200'
+                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                    }`}
+                  >
+                    <span>{b.type === 'booking' ? '🔴' : '🟠'}</span>
+                    <strong>{b.reason || 'Off-Duty'}:</strong>
+                    <span>
+                      {new Date(b.start_date).toLocaleDateString()} &rarr; {new Date(b.end_date).toLocaleDateString()}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Portfolio Gallery Works */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
@@ -146,17 +226,38 @@ export default function ProfessionalDetailModal({
                   key={work.id}
                   className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-2xs group"
                 >
-                  <div className="aspect-video bg-slate-200 relative overflow-hidden">
-                    <img
-                      src={work.media_url}
-                      alt={work.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800&auto=format&fit=crop&q=60';
-                      }}
-                    />
-                    <span className="absolute top-2 right-2 text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-black/60 text-white backdrop-blur-xs">
-                      {work.media_type || 'image'}
+                  <div className="aspect-video bg-slate-900 relative overflow-hidden flex items-center justify-center">
+                    {work.media_type === 'video' ? (
+                      <video
+                        src={work.media_url}
+                        controls
+                        className="w-full h-full object-cover"
+                      />
+                    ) : work.media_type === 'document' ? (
+                      <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center p-3 text-center">
+                        <span className="text-2xl mb-1">📄</span>
+                        <span className="text-xs font-bold text-slate-800 line-clamp-1">{work.title}</span>
+                        <a
+                          href={work.media_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1.5 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-semibold rounded-md transition-colors"
+                        >
+                          View PDF Lookbook &rarr;
+                        </a>
+                      </div>
+                    ) : (
+                      <img
+                        src={work.media_url}
+                        alt={work.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          e.target.src = 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800&auto=format&fit=crop&q=60';
+                        }}
+                      />
+                    )}
+                    <span className="absolute top-2 right-2 text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white backdrop-blur-xs">
+                      {work.media_type === 'document' ? 'PDF' : work.media_type === 'video' ? 'Video' : 'Photo'}
                     </span>
                   </div>
                   <div className="p-3">
@@ -165,6 +266,60 @@ export default function ProfessionalDetailModal({
                       <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{work.description}</p>
                     )}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Client Reviews & Ratings Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <span>⭐ Client Reviews & Ratings</span>
+              <span className="text-[10px] bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                ★ {avgRating} ({totalReviews} {totalReviews === 1 ? 'review' : 'reviews'})
+              </span>
+            </h3>
+            <span className="text-[11px] text-slate-400">Verified Client Feedback</span>
+          </div>
+
+          {reviews.length === 0 ? (
+            <div className="py-6 text-center text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+              No client reviews yet. Book this partner to be the first to leave a verified review!
+            </div>
+          ) : (
+            <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+              {reviews.map((rev) => (
+                <div
+                  key={rev.id}
+                  className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs transition-all"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2">
+                      <strong className="text-slate-900 font-semibold">{rev.customer_name}</strong>
+                      {rev.project_name && (
+                        <span className="text-[10px] text-slate-500 bg-white border border-slate-200 px-2 py-0.2 rounded-md">
+                          {rev.project_name}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 text-amber-400 font-bold text-xs">
+                      <span>{'★'.repeat(rev.rating)}</span>
+                      <span className="text-slate-500 text-[10px] font-normal">
+                        ({rev.rating}/5)
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-slate-700 text-xs italic leading-relaxed mt-1">
+                    &ldquo;{rev.comment}&rdquo;
+                  </p>
+
+                  <span className="text-[10px] text-slate-400 block mt-1.5">
+                    {new Date(rev.created_at).toLocaleDateString()}
+                  </span>
                 </div>
               ))}
             </div>
