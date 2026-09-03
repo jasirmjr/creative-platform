@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 export default function VendorDashboard({ user, onBackToMarketplace }) {
-  const [activeTab, setActiveTab] = useState('gallery'); // 'gallery' | 'bookings'
+  const [activeTab, setActiveTab] = useState('gallery'); // 'gallery' | 'bookings' | 'profile'
 
   // Portfolio State
   const [portfolio, setPortfolio] = useState([]);
@@ -16,6 +16,16 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
 
   // Vendor Profile State
   const [vendorProfile, setVendorProfile] = useState(null);
+  const [editProfileData, setEditProfileData] = useState({
+    business_name: '',
+    location: '',
+    experience: '',
+    skills: '',
+    pricing: '',
+    pricing_unit: 'day',
+    bio: '',
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
 
   // Feedback State
   const [notification, setNotification] = useState(null);
@@ -32,6 +42,15 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
       const data = await res.json();
       if (data.success) {
         setVendorProfile(data.data);
+        setEditProfileData({
+          business_name: data.data.business_name || '',
+          location: data.data.location || '',
+          experience: data.data.experience || '',
+          skills: data.data.skills || '',
+          pricing: data.data.pricing || '',
+          pricing_unit: data.data.pricing_unit || 'day',
+          bio: data.data.bio || '',
+        });
       }
     } catch (err) {
       console.error('Failed to load vendor profile:', err);
@@ -82,6 +101,55 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
     fetchBookings();
   }, [token]);
 
+  // Handle Availability Toggle (Section 12 of Blueprint)
+  const handleUpdateAvailability = async (newStatus) => {
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/availability', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ availability_status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to update availability');
+
+      setVendorProfile((prev) => ({ ...prev, availability_status: newStatus }));
+      setNotification({
+        type: 'success',
+        message: `Availability status set to ${newStatus.replace('_', ' ').toUpperCase()}`,
+      });
+    } catch (err) {
+      setNotification({ type: 'error', message: err.message });
+    }
+  };
+
+  // Handle Save Profile
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(editProfileData),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to update profile');
+
+      setVendorProfile(data.data);
+      setNotification({ type: 'success', message: 'Studio profile updated successfully!' });
+    } catch (err) {
+      setNotification({ type: 'error', message: err.message });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   // Handle Delete Portfolio Item
   const handleDeletePortfolio = async (id) => {
     if (!window.confirm('Are you sure you want to remove this work from your gallery?')) return;
@@ -130,17 +198,19 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
   };
 
   // Metrics
-  const pendingRequestsCount = bookings.filter((b) => b.status === 'under_review' || b.status === 'pending').length;
-  const confirmedCount = bookings.filter((b) => b.status === 'confirmed' || b.status === 'approved').length;
+  const pendingRequestsCount = bookings.filter((b) => b.status === 'under_review' || b.status === 'availability_check' || b.status === 'new_request').length;
+  const confirmedCount = bookings.filter((b) => b.status === 'confirmed' || b.status === 'in_progress').length;
   const totalValue = bookings
     .filter((b) => b.status === 'confirmed' || b.status === 'completed')
     .reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
 
+  const currentAvailability = vendorProfile?.availability_status || 'available';
+
   // Filtered Bookings
   const filteredBookings = bookings.filter((b) => {
     if (bookingFilter === 'all') return true;
-    if (bookingFilter === 'requests') return b.status === 'under_review' || b.status === 'pending';
-    if (bookingFilter === 'confirmed') return b.status === 'confirmed' || b.status === 'approved';
+    if (bookingFilter === 'requests') return b.status === 'under_review' || b.status === 'availability_check' || b.status === 'new_request';
+    if (bookingFilter === 'confirmed') return b.status === 'confirmed' || b.status === 'in_progress';
     if (bookingFilter === 'completed') return b.status === 'completed';
     if (bookingFilter === 'cancelled') return b.status === 'cancelled';
     return true;
@@ -151,9 +221,9 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
       {/* Studio Header Banner */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-2">
             <span className="text-xs uppercase tracking-wider font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
-              Vendor Studio & Portfolio
+              Service Provider Portal &bull; Section 16
             </span>
             <span
               className={`text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
@@ -166,26 +236,33 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
             </span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
             {vendorProfile?.business_name || user?.name || 'Creator Studio'}
           </h1>
-          <p className="text-sm text-slate-600 mt-1">
-            {vendorProfile?.bio || 'Manage your creative showcase, upload portfolio works, and track client bookings.'}
+          <p className="text-xs text-slate-600 mt-1 max-w-xl">
+            {vendorProfile?.bio || 'Manage your creative showcase, upload portfolio works, set live availability, and track assigned client projects.'}
           </p>
-          <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
-            <span>📍 {vendorProfile?.location || 'Base Location Not Set'}</span>
-            <span>👤 Lead: {user?.name || user?.mobile}</span>
+
+          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mt-3">
+            <span>📍 {vendorProfile?.location || 'Location Not Set'}</span>
+            <span>⏳ Experience: {vendorProfile?.experience || '2+ years'}</span>
+            {vendorProfile?.pricing && (
+              <span className="font-mono font-bold text-slate-800">
+                ₹{Number(vendorProfile.pricing).toLocaleString()}/{vendorProfile.pricing_unit || 'day'}
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3 self-start sm:self-auto">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <button
             onClick={() => setIsUploadModalOpen(true)}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
           >
             <span>+</span>
-            <span>Upload New Work</span>
+            <span>Upload Work</span>
           </button>
+
           <button
             onClick={onBackToMarketplace}
             className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-200 transition-colors cursor-pointer"
@@ -195,16 +272,38 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
         </div>
       </div>
 
-      {/* Verification Notice Banner if Pending */}
-      {vendorProfile?.verification_status !== 'verified' && (
-        <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-xs text-amber-900">
-          <span className="text-base">⏳</span>
-          <div>
-            <strong className="block mb-0.5">Profile Under Admin Verification</strong>
-            Your profile application is currently under review by our curation team. You can continue uploading works to your gallery and configuring your studio in the meantime!
-          </div>
+      {/* Availability Switcher Bar (Section 12 Availability Management) */}
+      <div className="mb-6 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <span className="text-xs font-bold text-slate-900 block">Section 12: Availability Management</span>
+          <span className="text-xs text-slate-500">Set your live booking status to prevent conflicting client holds.</span>
         </div>
-      )}
+
+        <div className="flex items-center gap-2">
+          {[
+            { id: 'available', label: 'Available for Hire', color: 'emerald' },
+            { id: 'booked', label: 'Currently Booked', color: 'rose' },
+            { id: 'unavailable', label: 'Unavailable', color: 'slate' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleUpdateAvailability(item.id)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
+                currentAvailability === item.id
+                  ? item.id === 'available'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : item.id === 'booked'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                    : 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${currentAvailability === item.id ? 'bg-white' : 'bg-slate-400'}`}></span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Notification Toast */}
       {notification && (
@@ -237,7 +336,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
         >
           <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Gallery Works</span>
           <p className="text-3xl font-bold text-slate-900 mt-2">{portfolio.length}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Live showcase items</span>
+          <span className="text-xs text-slate-500 mt-1 block">Live showcase samples</span>
         </div>
 
         <div
@@ -254,13 +353,13 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Booking Requests</span>
             {pendingRequestsCount > 0 && (
-              <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
-                Action Required
+              <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200 animate-pulse">
+                Needs Response
               </span>
             )}
           </div>
           <p className="text-3xl font-bold text-slate-900 mt-2">{pendingRequestsCount}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Awaiting your response</span>
+          <span className="text-xs text-slate-500 mt-1 block">Awaiting provider confirmation</span>
         </div>
 
         <div
@@ -276,21 +375,21 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
         >
           <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Confirmed Shoots</span>
           <p className="text-3xl font-bold text-slate-900 mt-2">{confirmedCount}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Active production dates</span>
+          <span className="text-xs text-slate-500 mt-1 block">Assigned active productions</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Confirmed Value</span>
-          <p className="text-3xl font-bold text-slate-900 mt-2">₹{totalValue.toLocaleString()}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Gross booking total</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Gross Production Total</span>
+          <p className="text-3xl font-bold text-slate-900 mt-2 font-mono">₹{totalValue.toLocaleString()}</p>
+          <span className="text-xs text-slate-500 mt-1 block">Confirmed bookings value</span>
         </div>
       </div>
 
       {/* Main Studio Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 mb-6 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 mb-6 pb-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('gallery')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
             activeTab === 'gallery'
               ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -306,18 +405,29 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
 
         <button
           onClick={() => setActiveTab('bookings')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
             activeTab === 'bookings'
               ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
-          <span>Booking Requests & History</span>
+          <span>Assigned Projects & Bookings</span>
           {pendingRequestsCount > 0 && (
             <span className="text-[10px] px-2 py-0.2 bg-amber-500 text-white rounded-full font-bold">
               {pendingRequestsCount} new
             </span>
           )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('profile')}
+          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'profile'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          Profile & Skills
         </button>
       </div>
 
@@ -326,9 +436,9 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Your Portfolio Gallery</h2>
+              <h2 className="text-lg font-bold text-slate-900">Your Portfolio Showcase</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Showcase previous client shoots, equipment setups, cinematography reels, and production stills.
+                Section 6 Portfolio: Upload client shoots, equipment packages, and color grading reels.
               </p>
             </div>
             <button
@@ -351,7 +461,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
               </div>
               <h3 className="text-sm font-bold text-slate-800">Your Gallery is Empty</h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                Clients choose talent and gear based on verified work samples. Upload your first cinematography still or photo shoot!
+                Upload your cinematography frames, fashion shoots, or gear kits so clients can discover and book you.
               </p>
               <button
                 onClick={() => setIsUploadModalOpen(true)}
@@ -415,18 +525,17 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
       {/* TAB 2: BOOKING REQUESTS & HISTORY */}
       {activeTab === 'bookings' && (
         <div>
-          {/* Booking Filters */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Client Booking Requests & History</h2>
+              <h2 className="text-lg font-bold text-slate-900">Assigned Client Projects & History</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Respond to incoming production holds and track completed studio rentals.
+                Respond to managed booking requests and manage shoot execution dates.
               </p>
             </div>
 
             <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto overflow-x-auto">
               {[
-                { id: 'all', label: 'All' },
+                { id: 'all', label: 'All Projects' },
                 { id: 'requests', label: 'Pending Requests' },
                 { id: 'confirmed', label: 'Confirmed' },
                 { id: 'completed', label: 'Completed' },
@@ -458,7 +567,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
               </div>
               <h3 className="text-sm font-bold text-slate-800">No Bookings in This View</h3>
               <p className="text-xs text-slate-500 mt-1">
-                When clients book your listed talent or rental gear, their requests will appear here for your confirmation.
+                When customers submit project requirements for your talent, they will appear here.
               </p>
             </div>
           ) : (
@@ -472,7 +581,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span
                         className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded border ${
-                          b.status === 'confirmed' || b.status === 'approved'
+                          b.status === 'confirmed'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : b.status === 'completed'
                             ? 'bg-blue-50 text-blue-700 border-blue-200'
@@ -491,11 +600,11 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                       </span>
                     </div>
 
-                    <h3 className="text-base font-bold text-slate-900">{b.resource_title}</h3>
+                    <h3 className="text-base font-bold text-slate-900">{b.project_name || b.resource_title}</h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-slate-600 mt-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
                       <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Customer</span>
+                        <span className="text-[11px] text-slate-400 block font-medium">Customer Details</span>
                         <strong className="text-slate-800">{b.customer_name || 'Creative Client'}</strong>
                         {b.customer_mobile && <span className="block text-slate-500">{b.customer_mobile}</span>}
                       </div>
@@ -505,11 +614,12 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                         <span className="font-semibold text-slate-800">
                           {new Date(b.start_date).toLocaleDateString()} &rarr; {new Date(b.end_date).toLocaleDateString()}
                         </span>
+                        {b.duration && <span className="block text-slate-500">Duration: {b.duration}</span>}
                       </div>
 
                       <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Total Price</span>
-                        <span className="text-sm font-bold text-slate-900">
+                        <span className="text-[11px] text-slate-400 block font-medium">Booking Amount</span>
+                        <span className="text-sm font-bold text-slate-900 font-mono">
                           ₹{Number(b.total_amount).toLocaleString()}
                         </span>
                       </div>
@@ -518,14 +628,14 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100">
-                    {(b.status === 'under_review' || b.status === 'pending') && (
+                    {(b.status === 'under_review' || b.status === 'availability_check' || b.status === 'new_request') && (
                       <>
                         <button
                           onClick={() => handleUpdateBookingStatus(b.id, 'confirmed')}
                           disabled={updatingBookingId === b.id}
                           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
                         >
-                          {updatingBookingId === b.id ? 'Updating...' : '✓ Accept Booking'}
+                          {updatingBookingId === b.id ? 'Confirming...' : '✓ Confirm Available'}
                         </button>
                         <button
                           onClick={() => handleUpdateBookingStatus(b.id, 'cancelled')}
@@ -558,7 +668,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
 
                     {b.status === 'completed' && (
                       <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
-                        Shoot Completed
+                        ✓ Production Completed
                       </span>
                     )}
 
@@ -572,6 +682,110 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 3: PROFILE & SKILLS MANAGEMENT */}
+      {activeTab === 'profile' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs max-w-2xl">
+          <div className="mb-6">
+            <h2 className="text-lg font-bold text-slate-900">Profile & Experience Settings</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Section 6: Update your commercial skills, experience, and pricing details shown to clients.
+            </p>
+          </div>
+
+          <form onSubmit={handleSaveProfile} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Studio / Artist Name</label>
+              <input
+                type="text"
+                required
+                value={editProfileData.business_name}
+                onChange={(e) => setEditProfileData({ ...editProfileData, business_name: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Base Location</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Mumbai, Maharashtra"
+                  value={editProfileData.location}
+                  onChange={(e) => setEditProfileData({ ...editProfileData, location: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Years of Experience</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 8+ years"
+                  value={editProfileData.experience}
+                  onChange={(e) => setEditProfileData({ ...editProfileData, experience: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Base Price (₹)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 25000"
+                  value={editProfileData.pricing}
+                  onChange={(e) => setEditProfileData({ ...editProfileData, pricing: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Pricing Unit</label>
+                <select
+                  value={editProfileData.pricing_unit}
+                  onChange={(e) => setEditProfileData({ ...editProfileData, pricing_unit: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                >
+                  <option value="day">Per Day</option>
+                  <option value="hour">Per Hour</option>
+                  <option value="project">Per Project</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Skills & Specializations (Comma Separated)</label>
+              <input
+                type="text"
+                placeholder="e.g. ARRI Alexa, High-Speed Lighting, Music Videos, Anamorphic Cine"
+                value={editProfileData.skills}
+                onChange={(e) => setEditProfileData({ ...editProfileData, skills: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Professional Bio</label>
+              <textarea
+                rows="4"
+                value={editProfileData.bio}
+                onChange={(e) => setEditProfileData({ ...editProfileData, bio: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={savingProfile}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              {savingProfile ? 'Saving Changes...' : 'Save Profile Changes'}
+            </button>
+          </form>
         </div>
       )}
 
@@ -601,7 +815,6 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Sample Presets for quick test uploads
   const presets = [
     {
       label: 'Cinema Camera Rig',

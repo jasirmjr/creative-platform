@@ -5,6 +5,7 @@ const { verifyToken } = require('../middleware/auth.middleware');
 
 // Vendor portfolio management
 router.get('/my', verifyToken, portfolioController.getMyPortfolio);
+router.get('/vendor/:vendorId', portfolioController.getPublicVendorPortfolio);
 router.post('/', verifyToken, portfolioController.createPortfolioItem);
 router.delete('/:id', verifyToken, portfolioController.deletePortfolioItem);
 

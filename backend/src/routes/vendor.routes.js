@@ -9,6 +9,8 @@ router.get('/list', vendorController.getRegisteredVendors);
 // Protected actions
 router.post('/register', verifyToken, vendorController.registerVendor);
 router.get('/profile', verifyToken, vendorController.getVendorProfile);
+router.put('/profile', verifyToken, vendorController.updateProviderProfile);
+router.patch('/availability', verifyToken, vendorController.updateAvailability);
 
 // Admin-only review action
 router.patch(

@@ -7,6 +7,8 @@ export default function Navbar({
   currentView = 'marketplace',
   onNavigate,
   pendingCount = 0,
+  cartCount = 0,
+  onOpenCart,
 }) {
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
@@ -31,18 +33,25 @@ export default function Navbar({
           </div>
         </div>
 
-        {/* View Navigation Tabs */}
+        {/* Dedicated View Navigation Tabs */}
         <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
-          <button
-            onClick={() => onNavigate?.('marketplace')}
-            className={`px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-              currentView === 'marketplace'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Marketplace
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => onNavigate?.('admin')}
+              className={`px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                currentView === 'admin'
+                  ? 'bg-white text-purple-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>🛡️ Admin Console</span>
+              {pendingCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[10px] font-bold">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {user?.role === 'vendor' && (
             <button
@@ -53,29 +62,54 @@ export default function Navbar({
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>🎨 My Studio</span>
+              <span>🎨 My Studio Dashboard</span>
+            </button>
+          )}
+
+          {user?.role === 'customer' && (
+            <button
+              onClick={() => onNavigate?.('customer_projects')}
+              className={`px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                currentView === 'customer_projects'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>🎬 My Projects</span>
             </button>
           )}
 
           <button
-            onClick={() => onNavigate?.('admin')}
-            className={`px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentView === 'admin'
-                ? 'bg-white text-purple-700 shadow-xs'
+            onClick={() => onNavigate?.('marketplace')}
+            className={`px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              currentView === 'marketplace'
+                ? 'bg-white text-blue-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>Admin Panel</span>
-            {pendingCount > 0 && (
-              <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[10px] font-bold">
-                {pendingCount}
-              </span>
-            )}
+            {user ? 'Explore Marketplace' : 'Marketplace'}
           </button>
         </div>
 
-        {/* User Actions */}
+        {/* User Actions & Cart */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={onOpenCart}
+            className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-2"
+          >
+            <span className="text-sm">🛒</span>
+            <span className="hidden sm:inline">Hold Cart</span>
+            {cartCount > 0 ? (
+              <span className="px-1.5 py-0.2 bg-blue-600 text-white rounded-full text-[10px] font-bold">
+                {cartCount}
+              </span>
+            ) : (
+              <span className="px-1.5 py-0.2 bg-slate-100 text-slate-500 rounded-full text-[10px] font-medium">
+                0
+              </span>
+            )}
+          </button>
+
           {user ? (
             <div className="flex items-center gap-3">
               <div className="hidden sm:block text-right">

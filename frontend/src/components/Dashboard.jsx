@@ -1,50 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import BookingModal from './BookingModal';
 import VendorModal from './VendorModal';
+import ProfessionalDetailModal from './ProfessionalDetailModal';
 
-export default function Dashboard({ user, onOpenAuth, onNavigateToAdmin, onNavigateToStudio }) {
-  const [categories, setCategories] = useState([]);
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
-
-  // Registered Vendors State
+export default function Dashboard({
+  user,
+  onOpenAuth,
+  onNavigateToAdmin,
+  onNavigateToStudio,
+  onNavigateToCustomerProjects,
+  onAddToCart,
+  onOpenCart,
+}) {
+  // Approved Vendors State
   const [vendors, setVendors] = useState([]);
   const [loadingVendors, setLoadingVendors] = useState(true);
 
-  // Category drill-down state
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [resources, setResources] = useState([]);
-  const [loadingResources, setLoadingResources] = useState(false);
-
   const [bookingItem, setBookingItem] = useState(null);
+  const [selectedProfessional, setSelectedProfessional] = useState(null);
   const [activeBookingsCount, setActiveBookingsCount] = useState(0);
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
 
   const token = localStorage.getItem('token');
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
-  // Load Categories
-  useEffect(() => {
-    async function loadCategories() {
-      setLoading(true);
-      try {
-        const query = activeFilter === 'all' ? '' : `?type=${activeFilter}`;
-        const res = await fetch(`http://127.0.0.1:5000/api/v1/categories${query}`);
-        const data = await res.json();
-        if (data.success) setCategories(data.data);
-      } catch (err) {
-        console.error('Failed to load categories:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadCategories();
-  }, [activeFilter]);
-
-  // Load Registered Vendors
+  // Load Approved / Verified Vendors for Landing Page
   const fetchVendors = async () => {
     setLoadingVendors(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/list');
+      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/list?status=verified');
       const data = await res.json();
       if (data.success) setVendors(data.data);
     } catch (err) {
@@ -75,19 +59,6 @@ export default function Dashboard({ user, onOpenAuth, onNavigateToAdmin, onNavig
     loadUserBookings();
   }, [token]);
 
-  const handleSelectCategory = async (cat) => {
-    setSelectedCategory(cat);
-    setLoadingResources(true);
-    try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/resources?category_id=${cat.id}`);
-      const data = await res.json();
-      if (data.success) setResources(data.data);
-    } catch (err) {
-      console.error('Failed to load category listings:', err);
-    } finally {
-      setLoadingResources(false);
-    }
-  };
 
   const handleBookClick = (item) => {
     if (!user) {
@@ -112,8 +83,8 @@ export default function Dashboard({ user, onOpenAuth, onNavigateToAdmin, onNavig
   };
 
   const stats = [
-    { label: 'Registered Vendors', value: vendors.length.toString(), change: 'Creators & Studios' },
-    { label: 'Available Disciplines', value: categories.length.toString(), change: 'Live from Supabase' },
+    { label: 'Approved Talent & Studios', value: vendors.length.toString(), change: 'Verified Production Partners' },
+    { label: 'Marketplace Trust', value: vendors.length > 0 ? '100% VETTED' : 'READY', change: 'Identity & Portfolios Verified' },
     { label: 'Active Bookings', value: activeBookingsCount.toString(), change: user ? 'Tracked in DB' : 'Sign in to track' },
     { label: 'Account Role', value: user?.role ? user.role.toUpperCase() : 'GUEST', change: user ? 'Authenticated' : 'Sign in required' },
   ];
@@ -135,14 +106,40 @@ export default function Dashboard({ user, onOpenAuth, onNavigateToAdmin, onNavig
         </div>
 
         <div className="flex items-center gap-3 self-start sm:self-auto">
-          {user?.role === 'vendor' ? (
+          {isAdmin ? (
+            <button
+              onClick={onNavigateToAdmin}
+              className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+            >
+              <span>🛡️ Open Admin Console</span>
+              <span>&rarr;</span>
+            </button>
+          ) : user?.role === 'vendor' ? (
             <button
               onClick={onNavigateToStudio}
               className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
             >
-              <span>🎨 Open My Studio & Gallery</span>
+              <span>🎨 Open My Studio Dashboard</span>
               <span>&rarr;</span>
             </button>
+          ) : user?.role === 'customer' ? (
+            <>
+              {onNavigateToCustomerProjects && (
+                <button
+                  onClick={onNavigateToCustomerProjects}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>🎬 My Projects & Bookings</span>
+                  <span>&rarr;</span>
+                </button>
+              )}
+              <button
+                onClick={handleOpenVendorModal}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-200 transition-colors cursor-pointer"
+              >
+                + Register as Vendor
+              </button>
+            </>
           ) : (
             <button
               onClick={handleOpenVendorModal}
@@ -172,144 +169,18 @@ export default function Dashboard({ user, onOpenAuth, onNavigateToAdmin, onNavig
           </div>
         ))}
       </div>
-
-      {/* Categories / Disciplines */}
-      {selectedCategory ? (
-        <div className="mb-12">
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              &larr; Back to Disciplines
-            </button>
-            <span className="text-xs text-slate-500">
-              Showing verified listings for <strong className="text-slate-800">{selectedCategory.name}</strong>
-            </span>
-          </div>
-
-          {loadingResources ? (
-            <div className="py-16 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl">
-              Loading verified listings...
-            </div>
-          ) : resources.length === 0 ? (
-            <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center">
-              <p className="text-sm font-semibold text-slate-700">No listings found in this category.</p>
-              <p className="text-xs text-slate-500 mt-1">Be the first verified professional to list here.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {resources.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col justify-between hover:shadow-md transition-shadow"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                        Verified {item.resource_type === 'gear' ? 'Gear' : 'Talent'}
-                      </span>
-                      <span className="text-xs font-medium text-slate-500">{item.location}</span>
-                    </div>
-
-                    <h3 className="text-lg font-bold text-slate-900 mb-1">{item.title}</h3>
-                    <p className="text-xs text-blue-600 font-semibold mb-3">{item.business_name || item.provider_name}</p>
-                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-3 mb-6">{item.description}</p>
-                  </div>
-
-                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs text-slate-500 block">Rate</span>
-                      <span className="text-base font-bold text-slate-900">
-                        ₹{Number(item.base_price).toLocaleString()}
-                        <span className="text-xs text-slate-500 font-normal">/{item.pricing_unit}</span>
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => handleBookClick(item)}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer shadow-xs"
-                    >
-                      Book Now
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="mb-12">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">Explore Marketplace Disciplines</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Filter by category to view verified equipment and talent.</p>
-            </div>
-
-            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 p-1 rounded-xl self-start">
-              {['all', 'talent', 'gear_rental'].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setActiveFilter(type)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                    activeFilter === type ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {type === 'all' ? 'All' : type === 'talent' ? 'Talent' : 'Gear Rentals'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="py-16 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl">
-              Loading catalog from database...
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {categories.map((cat) => (
-                <div
-                  key={cat.id}
-                  onClick={() => handleSelectCategory(cat)}
-                  className="group bg-white border border-slate-200 hover:border-blue-400 p-5 rounded-xl transition-all shadow-xs hover:shadow-md cursor-pointer flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
-                        cat.type === 'talent'
-                          ? 'bg-purple-50 text-purple-700 border-purple-200'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      }`}>
-                        {cat.type === 'talent' ? 'Talent' : 'Gear Rental'}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-400 group-hover:text-blue-600 transition-colors">
-                        View Listings &rarr;
-                      </span>
-                    </div>
-                    <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                      {cat.name}
-                    </h3>
-                    <p className="text-xs text-slate-600 mt-1.5 leading-relaxed line-clamp-2">
-                      {cat.description || 'Verified professionals and equipment available.'}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Registered Vendors Section */}
+      {/* Approved Creative Talent & Studios */}
       <div className="mb-12">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Registered Creative Vendors & Studios</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Vetted production partners, creators, and rental providers.</p>
+            <h2 className="text-xl font-bold text-slate-900">Approved Creative Talent & Studios</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Vetted and approved production partners, creators, and rental providers.</p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-slate-400">{vendors.length} Registered</span>
-            {onNavigateToAdmin && (
+            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+              {vendors.length} Approved & Verified
+            </span>
+            {isAdmin && onNavigateToAdmin && (
               <button
                 onClick={onNavigateToAdmin}
                 className="text-xs font-semibold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1"
@@ -323,12 +194,12 @@ export default function Dashboard({ user, onOpenAuth, onNavigateToAdmin, onNavig
 
         {loadingVendors ? (
           <div className="py-12 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl">
-            Loading vendors...
+            Loading approved vendors...
           </div>
         ) : vendors.length === 0 ? (
           <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-10 text-center">
-            <p className="text-sm font-semibold text-slate-700">No registered vendors yet.</p>
-            <p className="text-xs text-slate-500 mt-1">Be the first to join as a creative partner.</p>
+            <p className="text-sm font-semibold text-slate-700">No approved vendors listed yet.</p>
+            <p className="text-xs text-slate-500 mt-1">Vendor registrations are currently under admin review.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -358,13 +229,51 @@ export default function Dashboard({ user, onOpenAuth, onNavigateToAdmin, onNavig
                   </p>
                 </div>
 
-                <div className="pt-4 mt-5 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">
-                    Joined {new Date(vendor.created_at).toLocaleDateString()}
-                  </span>
-                  <span className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer">
-                    Profile Details &rarr;
-                  </span>
+                <div className="pt-4 mt-5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Standard Rate</span>
+                    <span className="text-sm font-bold text-slate-900 font-mono">
+                      ₹{Number(vendor.pricing || 15000).toLocaleString()}
+                      <span className="text-xs font-normal text-slate-500">/{vendor.pricing_unit || 'day'}</span>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        setSelectedProfessional({
+                          ...vendor,
+                          title: vendor.business_name,
+                          resource_type: 'talent',
+                          vendor_id: vendor.id,
+                          base_price: vendor.pricing || 15000,
+                          pricing_unit: vendor.pricing_unit || 'day',
+                          provider_name: vendor.owner_name,
+                        })
+                      }
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                    >
+                      Profile & Works
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        onAddToCart?.({
+                          ...vendor,
+                          title: vendor.business_name,
+                          resource_type: 'talent',
+                          vendor_id: vendor.id,
+                          base_price: vendor.pricing || 15000,
+                          pricing_unit: vendor.pricing_unit || 'day',
+                          provider_name: vendor.owner_name,
+                        })
+                      }
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>🛒</span>
+                      <span>Book Hold</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -372,12 +281,31 @@ export default function Dashboard({ user, onOpenAuth, onNavigateToAdmin, onNavig
         )}
       </div>
 
-      {/* Booking Form Modal */}
+      {/* Professional Profile Detail Modal (Section 6) */}
+      <ProfessionalDetailModal
+        professional={selectedProfessional}
+        isOpen={Boolean(selectedProfessional)}
+        onClose={() => setSelectedProfessional(null)}
+        onRequestBooking={(prof) => {
+          setSelectedProfessional(null);
+          onAddToCart?.(prof);
+        }}
+      />
+
+      {/* Project Requirement Booking Form Modal (Section 11) */}
       <BookingModal
         item={bookingItem}
         isOpen={Boolean(bookingItem)}
         onClose={() => setBookingItem(null)}
-        onSuccess={() => alert('Booking reserved successfully!')}
+        onOpenAuth={onOpenAuth}
+        onSuccess={(newBooking) => {
+          setBookingItem(null);
+          if (onNavigateToCustomerProjects) {
+            onNavigateToCustomerProjects();
+          } else {
+            alert('Project requirement submitted successfully for admin review!');
+          }
+        }}
         token={token}
       />
 

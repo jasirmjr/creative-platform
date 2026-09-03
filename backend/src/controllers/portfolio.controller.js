@@ -119,3 +119,19 @@ exports.deletePortfolioItem = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
+
+// GET /api/v1/portfolios/vendor/:vendorId
+// Public: Returns gallery works for a specific vendor profile
+exports.getPublicVendorPortfolio = async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { rows } = await db.query(
+      'SELECT * FROM portfolios WHERE vendor_id = $1 ORDER BY created_at DESC;',
+      [vendorId]
+    );
+    return res.status(200).json({ success: true, count: rows.length, data: rows });
+  } catch (error) {
+    console.error('Get Public Portfolio Error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
