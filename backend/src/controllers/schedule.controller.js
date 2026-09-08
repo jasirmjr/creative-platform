@@ -88,6 +88,7 @@ exports.getMySchedule = async (req, res) => {
     // 1. All bookings for this vendor
     const bookingsRes = await db.query(
       `SELECT b.id, b.project_name, b.start_date, b.end_date, b.status, b.total_amount,
+              b.crew_bundle_id, b.crew_bundle_name, b.crew_role,
               u.name as customer_name, u.mobile as customer_mobile
        FROM bookings b
        LEFT JOIN users u ON b.customer_id = u.id

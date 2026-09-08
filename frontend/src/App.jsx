@@ -6,12 +6,23 @@ import VendorDashboard from './components/VendorDashboard';
 import CustomerDashboard from './components/CustomerDashboard';
 import AuthModal from './components/AuthModal';
 import CartModal from './components/CartModal';
+import ChatModal from './components/ChatModal';
+import { getSocket } from './utils/socket';
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authInitialMode, setAuthInitialMode] = useState('login');
   const [authInitialRole, setAuthInitialRole] = useState('customer');
+  const [authRoleLocked, setAuthRoleLocked] = useState(false);
+  const [token, setToken] = useState(() => {
+    try {
+      return sessionStorage.getItem('token') || null;
+    } catch (e) {
+      return null;
+    }
+  });
+
   const getDefaultView = (userData) => {
     if (!userData) return 'marketplace';
     if (userData.role === 'admin' || userData.role === 'super_admin') return 'admin';
@@ -22,7 +33,7 @@ export default function App() {
 
   const [currentView, setCurrentView] = useState(() => {
     try {
-      const stored = localStorage.getItem('user');
+      const stored = sessionStorage.getItem('user');
       if (stored) {
         const u = JSON.parse(stored);
         return getDefaultView(u);
@@ -33,10 +44,10 @@ export default function App() {
   const [pendingVendorCount, setPendingVendorCount] = useState(0);
   const [vendorRefreshKey, setVendorRefreshKey] = useState(0);
 
-  // Cart State (Persisted in localStorage)
+  // Cart State (Persisted in sessionStorage per tab)
   const [cart, setCart] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('booking_cart')) || [];
+      return JSON.parse(sessionStorage.getItem('booking_cart')) || [];
     } catch (e) {
       return [];
     }
@@ -45,11 +56,27 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('booking_cart', JSON.stringify(cart));
+      sessionStorage.setItem('booking_cart', JSON.stringify(cart));
     } catch (e) {
-      console.error('Failed to save cart to localStorage', e);
+      console.error('Failed to save cart to sessionStorage', e);
     }
   }, [cart]);
+
+  // Dynamically update the browser tab title based on the active user in THIS tab
+  useEffect(() => {
+    if (!user) {
+      document.title = 'Creative Hub - Talent & Gear Marketplace';
+    } else if (user.role === 'admin' || user.role === 'super_admin') {
+      document.title = `🛡️ Admin (${user.name || 'Console'}) | Creative Hub`;
+    } else if (user.role === 'vendor') {
+      const studio = user.vendor_profile?.business_name || user.name || 'Studio';
+      document.title = `🎨 ${studio} (${user.name || 'Vendor'}) | Creative Hub`;
+    } else if (user.role === 'customer') {
+      document.title = `👤 ${user.name || 'Client'} | Creative Hub`;
+    } else {
+      document.title = 'Creative Hub - Talent & Gear Marketplace';
+    }
+  }, [user]);
 
   const handleAddToCart = (item) => {
     const defaultStart = new Date(Date.now() + 86400000).toISOString().split('T')[0];
@@ -92,7 +119,7 @@ export default function App() {
 
   const fetchPendingVendorsCount = useCallback(async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/list');
+      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/list?include_unavailable=true');
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         const count = data.data.filter((v) => v.verification_status === 'pending').length;
@@ -105,20 +132,30 @@ export default function App() {
 
   useEffect(() => {
     try {
-      const storedUser = localStorage.getItem('user');
+      // Clear legacy localStorage once to prevent cross-tab leaks from past sessions
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('booking_cart');
+
+      const storedUser = sessionStorage.getItem('user');
+      const storedToken = sessionStorage.getItem('token');
       if (storedUser) {
         setUser(JSON.parse(storedUser));
       }
+      if (storedToken) {
+        setToken(storedToken);
+      }
     } catch (e) {
-      console.error('Failed to load session from localStorage', e);
+      console.error('Failed to load session from sessionStorage', e);
     }
     fetchPendingVendorsCount();
   }, [fetchPendingVendorsCount]);
 
-  const handleLoginSuccess = (userData, token) => {
+  const handleLoginSuccess = (userData, userToken) => {
     setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('token', token);
+    setToken(userToken);
+    sessionStorage.setItem('user', JSON.stringify(userData));
+    sessionStorage.setItem('token', userToken);
     setIsAuthModalOpen(false);
 
     // Redirect user to appropriate dashboard
@@ -134,8 +171,11 @@ export default function App() {
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    setToken(null);
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('booking_cart');
+    setCart([]);
     setCurrentView('marketplace');
   };
 
@@ -144,9 +184,79 @@ export default function App() {
     setVendorRefreshKey((prev) => prev + 1);
   };
 
-  const handleOpenAuth = (mode = 'login', role = 'customer') => {
+  // Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatTarget, setChatTarget] = useState({
+    conversationId: null,
+    vendorId: null,
+    bookingId: null,
+    type: null,
+  });
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  const fetchUnreadChatCount = useCallback(async () => {
+    if (!token) {
+      setUnreadChatCount(0);
+      return;
+    }
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/chat/unread-count', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUnreadChatCount(data.count || 0);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchUnreadChatCount();
+  }, [fetchUnreadChatCount]);
+
+  // Socket notification listener for global unread counter
+  useEffect(() => {
+    if (!token) return;
+    const socket = getSocket(token);
+    if (!socket) return;
+
+    const handleChatNotification = () => {
+      fetchUnreadChatCount();
+    };
+
+    socket.on('chat_notification', handleChatNotification);
+    return () => {
+      socket.off('chat_notification', handleChatNotification);
+    };
+  }, [token, fetchUnreadChatCount]);
+
+  const handleOpenChat = (target = {}) => {
+    if (!user) {
+      handleOpenAuth('login');
+      return;
+    }
+    setChatTarget({
+      conversationId: target.conversationId || null,
+      vendorId: target.vendorId || null,
+      bookingId: target.bookingId || null,
+      type: target.type || null,
+      scope: target.scope || null,
+      initialMessage: target.initialMessage || null,
+    });
+    setIsChatOpen(true);
+  };
+
+  const handleCloseChat = () => {
+    setIsChatOpen(false);
+    fetchUnreadChatCount();
+  };
+
+  const handleOpenAuth = (mode = 'login', role = null) => {
     setAuthInitialMode(mode);
-    setAuthInitialRole(role);
+    setAuthInitialRole(role || 'customer');
+    setAuthRoleLocked(role !== null);
     setIsAuthModalOpen(true);
   };
 
@@ -159,6 +269,8 @@ export default function App() {
         pendingCount={pendingVendorCount}
         cartCount={cart.length}
         onOpenCart={() => setIsCartOpen(true)}
+        unreadChatCount={unreadChatCount}
+        onOpenChat={() => handleOpenChat()}
         onOpenAuth={handleOpenAuth}
         onLogout={handleLogout}
       />
@@ -166,37 +278,48 @@ export default function App() {
       <div className="flex-1">
         {currentView === 'admin' ? (
           <AdminPanel
-            key={`admin-${vendorRefreshKey}`}
+            key={`admin-${user?.id || 'guest'}-${vendorRefreshKey}`}
             user={user}
+            token={token}
             onOpenAuth={handleOpenAuth}
             onBackToMarketplace={() => setCurrentView('marketplace')}
             onVendorStatusChanged={handleVendorStatusChanged}
+            onOpenChat={handleOpenChat}
           />
         ) : currentView === 'vendor_studio' ? (
           <VendorDashboard
-            key={`vendor-${vendorRefreshKey}`}
+            key={`vendor-${user?.id || 'guest'}-${vendorRefreshKey}`}
             user={user}
+            token={token}
             onBackToMarketplace={() => setCurrentView('marketplace')}
+            onOpenAuth={handleOpenAuth}
+            onVendorUpdated={handleVendorStatusChanged}
+            onOpenChat={handleOpenChat}
           />
         ) : currentView === 'customer_projects' ? (
           <CustomerDashboard
-            key={`customer-${vendorRefreshKey}`}
+            key={`customer-${user?.id || 'guest'}-${vendorRefreshKey}`}
             user={user}
+            token={token}
             onOpenAuth={handleOpenAuth}
             onBackToMarketplace={() => setCurrentView('marketplace')}
+            onOpenVendorModal={() => handleOpenAuth('register', 'vendor')}
             onAddToCart={handleAddToCart}
             onOpenCart={() => setIsCartOpen(true)}
+            onOpenChat={handleOpenChat}
           />
         ) : (
           <Dashboard
-            key={`dash-${vendorRefreshKey}`}
+            key={`dash-${user?.id || 'guest'}-${vendorRefreshKey}`}
             user={user}
+            token={token}
             onOpenAuth={handleOpenAuth}
             onNavigateToAdmin={() => setCurrentView('admin')}
             onNavigateToStudio={() => setCurrentView('vendor_studio')}
             onNavigateToCustomerProjects={() => setCurrentView('customer_projects')}
             onAddToCart={handleAddToCart}
             onOpenCart={() => setIsCartOpen(true)}
+            onOpenChat={handleOpenChat}
           />
         )}
       </div>
@@ -205,6 +328,7 @@ export default function App() {
         isOpen={isAuthModalOpen}
         initialMode={authInitialMode}
         initialRole={authInitialRole}
+        lockRole={authRoleLocked}
         onClose={() => setIsAuthModalOpen(false)}
         onSuccess={handleLoginSuccess}
       />
@@ -214,11 +338,25 @@ export default function App() {
         onClose={() => setIsCartOpen(false)}
         cart={cart}
         user={user}
+        token={token}
         onOpenAuth={handleOpenAuth}
         onRemoveFromCart={handleRemoveFromCart}
         onUpdateCartItem={handleUpdateCartItem}
         onClearCart={handleClearCart}
         onCheckoutSuccess={handleCheckoutSuccess}
+      />
+
+      <ChatModal
+        isOpen={isChatOpen}
+        onClose={handleCloseChat}
+        user={user}
+        token={token}
+        initialConversationId={chatTarget.conversationId}
+        initialVendorId={chatTarget.vendorId}
+        initialBookingId={chatTarget.bookingId}
+        initialType={chatTarget.type}
+        initialMessage={chatTarget.initialMessage}
+        scope={chatTarget.scope || (user?.role === 'vendor' ? 'client' : 'all')}
       />
     </div>
   );

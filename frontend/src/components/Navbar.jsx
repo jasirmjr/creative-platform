@@ -9,6 +9,8 @@ export default function Navbar({
   pendingCount = 0,
   cartCount = 0,
   onOpenCart,
+  unreadChatCount = 0,
+  onOpenChat,
 }) {
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
@@ -44,7 +46,7 @@ export default function Navbar({
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>🛡️ Admin Console</span>
+              <span>Admin Console</span>
               {pendingCount > 0 && (
                 <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[10px] font-bold">
                   {pendingCount}
@@ -62,7 +64,7 @@ export default function Navbar({
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>🎨 My Studio Dashboard</span>
+              <span>My Studio Dashboard</span>
             </button>
           )}
 
@@ -75,7 +77,7 @@ export default function Navbar({
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>🎬 My Projects</span>
+              <span>My Projects</span>
             </button>
           )}
 
@@ -93,6 +95,27 @@ export default function Navbar({
 
         {/* User Actions & Cart */}
         <div className="flex items-center gap-3">
+          {user && (
+            <button
+              onClick={onOpenChat}
+              className={`px-3.5 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-2 relative ${
+                isAdmin
+                  ? 'border-purple-200 bg-purple-50/50 hover:bg-purple-100/70 text-purple-900'
+                  : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800'
+              }`}
+              title={isAdmin ? "Vendor Support & Platform Chat Desk" : "Open Project Messages & Studio Chat"}
+            >
+              <span>{isAdmin ? '🛡️ Support Chat' : 'Messages'}</span>
+              {unreadChatCount > 0 && (
+                <span className={`px-1.5 py-0.2 text-white rounded-full text-[10px] font-bold animate-pulse ${
+                  isAdmin ? 'bg-purple-600' : 'bg-blue-600'
+                }`}>
+                  {unreadChatCount}
+                </span>
+              )}
+            </button>
+          )}
+
           <button
             onClick={onOpenCart}
             className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-2"

@@ -5,6 +5,7 @@ export default function ReviewModal({
   onClose,
   booking,
   onSuccess,
+  token: propToken,
 }) {
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
@@ -14,7 +15,7 @@ export default function ReviewModal({
 
   if (!isOpen || !booking) return null;
 
-  const token = localStorage.getItem('token');
+  const token = propToken || sessionStorage.getItem('token');
 
   const ratingDescriptions = {
     1: '1 Star - Needs Significant Improvement',

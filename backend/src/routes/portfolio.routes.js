@@ -6,6 +6,7 @@ const { verifyToken } = require('../middleware/auth.middleware');
 // Vendor portfolio management
 router.get('/my', verifyToken, portfolioController.getMyPortfolio);
 router.get('/vendor/:vendorId', portfolioController.getPublicVendorPortfolio);
+router.get('/media-preview', portfolioController.getMediaPreview);
 
 // Device File Upload endpoint (image, video, pdf)
 router.post('/upload', verifyToken, portfolioController.uploadMiddleware, portfolioController.uploadFile);

@@ -22,6 +22,9 @@ app.use('/api/v1/vendors', require('./routes/vendor.routes'));
 app.use('/api/v1/portfolios', require('./routes/portfolio.routes'));
 app.use('/api/v1/reviews', require('./routes/review.routes'));
 app.use('/api/v1/schedule', require('./routes/schedule.routes'));
+app.use('/api/v1/chat', require('./routes/chat.routes'));
+app.use('/api/v1/complaints', require('./routes/complaint.routes'));
+app.use('/api/v1/payments', require('./routes/payment.routes'));
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Creative Talent API is healthy' });

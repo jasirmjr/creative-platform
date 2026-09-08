@@ -1,12 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import VendorDepositModal from './VendorDepositModal';
+import PortfolioMediaViewer from './PortfolioMediaViewer';
+import ReceiptModal from './ReceiptModal';
+import AdminSupportDeskModal from './AdminSupportDeskModal';
+import DeliverablesVaultModal from './DeliverablesVaultModal';
+import { getSocket } from '../utils/socket';
 
-export default function VendorDashboard({ user, onBackToMarketplace }) {
+export default function VendorDashboard({ user, token: propToken, onBackToMarketplace, onOpenChat, onVendorUpdated }) {
   const [activeTab, setActiveTab] = useState('gallery'); // 'gallery' | 'bookings' | 'profile'
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [receiptModalBooking, setReceiptModalBooking] = useState(null);
+  const [isVendorDepositReceiptOpen, setIsVendorDepositReceiptOpen] = useState(false);
+  const [isAdminSupportOpen, setIsAdminSupportOpen] = useState(false);
+  const [deliverablesModalBooking, setDeliverablesModalBooking] = useState(null);
+  const [clientUnread, setClientUnread] = useState(0);
+  const [adminUnread, setAdminUnread] = useState(0);
 
   // Portfolio State
   const [portfolio, setPortfolio] = useState([]);
   const [loadingPortfolio, setLoadingPortfolio] = useState(true);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [selectedPreviewWork, setSelectedPreviewWork] = useState(null);
 
   // Bookings State
   const [bookings, setBookings] = useState([]);
@@ -41,13 +55,129 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
     pricing: '',
     pricing_unit: 'day',
     bio: '',
+    experience_level: 'mid',
   });
+  const [categoriesList, setCategoriesList] = useState([]);
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Feedback State
   const [notification, setNotification] = useState(null);
 
-  const token = localStorage.getItem('token');
+  // Complaints & Dispute State
+  const [vendorComplaints, setVendorComplaints] = useState([]);
+  const [loadingComplaints, setLoadingComplaints] = useState(false);
+  const [selectedDisputeModal, setSelectedDisputeModal] = useState(null);
+  const [vendorExplanationText, setVendorExplanationText] = useState('');
+  const [submittingExplanation, setSubmittingExplanation] = useState(false);
+
+  // Settlement Offer States
+  const [disputeActionTab, setDisputeActionTab] = useState('settle'); // 'settle' | 'counter' | 'statement'
+  const [counterOfferType, setCounterOfferType] = useState('partial_refund');
+  const [counterOfferAmount, setCounterOfferAmount] = useState('');
+  const [counterOfferDetails, setCounterOfferDetails] = useState('');
+  const [acceptingClientOffer, setAcceptingClientOffer] = useState(false);
+  const [submittingCounterOffer, setSubmittingCounterOffer] = useState(false);
+
+  const token = propToken || sessionStorage.getItem('token');
+
+  const handleAcceptClientOffer = async () => {
+    if (!selectedDisputeModal || acceptingClientOffer) return;
+    setAcceptingClientOffer(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${selectedDisputeModal.id}/accept-client-offer`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedDisputeModal(null);
+        fetchVendorComplaints();
+        setNotification({
+          type: 'success',
+          message: 'Client resolution proposal accepted. Dispute amicably settled!',
+        });
+      } else {
+        alert(data.message || 'Failed to accept proposal.');
+      }
+    } catch (err) {
+      alert('Network error.');
+    } finally {
+      setAcceptingClientOffer(false);
+    }
+  };
+
+  const handleSubmitCounterOffer = async (e) => {
+    e.preventDefault();
+    if (!selectedDisputeModal || submittingCounterOffer || !counterOfferDetails.trim()) return;
+    setSubmittingCounterOffer(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${selectedDisputeModal.id}/counter-offer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          offer_type: counterOfferType,
+          offer_amount: Number(counterOfferAmount) || 0,
+          offer_details: counterOfferDetails.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedDisputeModal(null);
+        setCounterOfferDetails('');
+        setCounterOfferAmount('');
+        fetchVendorComplaints();
+        setNotification({
+          type: 'success',
+          message: 'Your counter-offer has been delivered to the client.',
+        });
+      } else {
+        alert(data.message || 'Failed to submit counter-offer.');
+      }
+    } catch (err) {
+      alert('Network error.');
+    } finally {
+      setSubmittingCounterOffer(false);
+    }
+  };
+
+  // Load Vendor Disputes & Complaints
+  const fetchVendorComplaints = async () => {
+    if (!token) return;
+    setLoadingComplaints(true);
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/complaints/vendor', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setVendorComplaints(data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load vendor complaints:', err);
+    } finally {
+      setLoadingComplaints(false);
+    }
+  };
+
+  // Load Vendor Profile
+  const fetchUnreadStats = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/chat/unread-count', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setClientUnread(data.client_count || 0);
+        setAdminUnread(data.admin_count || 0);
+      }
+    } catch (err) {
+      console.error('Failed to load unread stats:', err);
+    }
+  }, [token]);
 
   // Load Vendor Profile
   const fetchProfile = async () => {
@@ -67,10 +197,24 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
           pricing: data.data.pricing || '',
           pricing_unit: data.data.pricing_unit || 'day',
           bio: data.data.bio || '',
+          experience_level: data.data.experience_level || 'mid',
         });
       }
     } catch (err) {
       console.error('Failed to load vendor profile:', err);
+    }
+  };
+
+  // Load Platform Categories & Rate Guardrails
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/categories');
+      const data = await res.json();
+      if (data.success) {
+        setCategoriesList(data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load categories:', err);
     }
   };
 
@@ -172,12 +316,41 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
   };
 
   useEffect(() => {
-    fetchProfile();
-    fetchPortfolio();
-    fetchBookings();
-    fetchStudioReviews();
-    fetchSchedule();
-  }, [token]);
+    setPortfolio([]);
+    setVendorProfile(null);
+    setBookings([]);
+    setStudioReviews([]);
+    setScheduleData({ bookings: [], blackouts: [] });
+
+    fetchCategories();
+    if (token && user?.id) {
+      fetchProfile();
+      fetchPortfolio();
+      fetchBookings();
+      fetchStudioReviews();
+      fetchSchedule();
+      fetchVendorComplaints();
+      fetchUnreadStats();
+
+      const socket = getSocket();
+      const handleNotification = () => {
+        fetchUnreadStats();
+      };
+      if (socket) {
+        socket.on('chat_notification', handleNotification);
+        socket.on('new_message', handleNotification);
+        socket.on('messages_read', handleNotification);
+      }
+
+      return () => {
+        if (socket) {
+          socket.off('chat_notification', handleNotification);
+          socket.off('new_message', handleNotification);
+          socket.off('messages_read', handleNotification);
+        }
+      };
+    }
+  }, [user?.id, token, fetchUnreadStats]);
 
   // Handle Availability Toggle (Section 12 of Blueprint)
   const handleUpdateAvailability = async (newStatus) => {
@@ -269,7 +442,9 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
       );
       setNotification({
         type: 'success',
-        message: newStatus === 'confirmed'
+        message: newStatus === 'approved'
+          ? 'You accepted the booking! The client has been notified to pay the advance deposit to confirm.'
+          : newStatus === 'confirmed'
           ? 'You accepted the booking! The shoot is officially confirmed.'
           : 'You declined the booking request. The client and platform admin have been notified with your explanation.',
       });
@@ -279,6 +454,67 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
     } finally {
       setUpdatingBookingId(null);
     }
+  };
+
+  // Balance Payment Reminder States & Handlers
+  const [remindingBookingId, setRemindingBookingId] = useState(null);
+  const [reminderStatusMap, setReminderStatusMap] = useState({});
+
+  const handleSendBalanceReminder = async (booking) => {
+    const total = Number(booking.total_amount || 0);
+    const paid = Number(booking.paid_amount || 0);
+    const pendingBalance = Math.max(0, total - paid);
+
+    if (pendingBalance <= 0) {
+      alert('No pending balance due for this project.');
+      return;
+    }
+
+    setRemindingBookingId(booking.id);
+    try {
+      const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/${booking.id}/remind-balance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReminderStatusMap((prev) => ({
+          ...prev,
+          [booking.id]: {
+            sent: true,
+            timestamp: new Date().toISOString(),
+          },
+        }));
+        setNotification({
+          type: 'success',
+          message: `🔔 Balance payment reminder sent to ${booking.customer_name || 'client'} for ₹${pendingBalance.toLocaleString()}!`,
+        });
+        fetchBookings();
+      } else {
+        setNotification({
+          type: 'error',
+          message: data.message || 'Failed to send balance reminder.',
+        });
+      }
+    } catch (err) {
+      setNotification({
+        type: 'error',
+        message: 'Network error while sending balance payment reminder.',
+      });
+    } finally {
+      setRemindingBookingId(null);
+    }
+  };
+
+  const handleRemindBalanceInChat = (booking) => {
+    const total = Number(booking.total_amount || 0);
+    const paid = Number(booking.paid_amount || 0);
+    const pendingBalance = Math.max(0, total - paid);
+    const prefilled = `Hi ${booking.customer_name || 'Client'}, the production deliverables for "${booking.project_name || 'Creative Production Shoot'}" are officially completed! Please settle the remaining balance amount of ₹${pendingBalance.toLocaleString()} on your dashboard. Thank you!`;
+    onOpenChat?.({ bookingId: booking.id, customerId: booking.customer_id, scope: 'client' }, prefilled);
   };
 
   // Metrics
@@ -318,6 +554,30 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
             >
               {vendorProfile?.verification_status || 'Pending Review'}
             </span>
+
+            {vendorProfile?.deposit_status === 'paid' ? (
+              <div className="inline-flex items-center gap-1.5">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Listing Deposit Paid
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsVendorDepositReceiptOpen(true)}
+                  className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer shadow-2xs transition-colors"
+                  title="View official studio listing deposit receipt"
+                >
+                  Deposit Receipt
+                </button>
+              </div>
+            ) : vendorProfile?.deposit_status === 'waived' ? (
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
+                Deposit Waived
+              </span>
+            ) : (
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
+                Deposit Pending
+              </span>
+            )}
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
@@ -328,8 +588,8 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
           </p>
 
           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mt-3">
-            <span>📍 {vendorProfile?.location || 'Location Not Set'}</span>
-            <span>⏳ Experience: {vendorProfile?.experience || '2+ years'}</span>
+            <span>{vendorProfile?.location || 'Location Not Set'}</span>
+            <span>Experience: {vendorProfile?.experience || '2+ years'}</span>
             {vendorProfile?.pricing && (
               <span className="font-mono font-bold text-slate-800">
                 ₹{Number(vendorProfile.pricing).toLocaleString()}/{vendorProfile.pricing_unit || 'day'}
@@ -339,6 +599,21 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
         </div>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setIsAdminSupportOpen(true)}
+            className="relative px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-xl border border-indigo-200 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+            title="Open official Platform Support Desk (Escalations, KYC, Payouts)"
+          >
+            <span>🛡️</span>
+            <span>Platform Support Desk</span>
+            {adminUnread > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded-full animate-pulse shadow-xs">
+                {adminUnread}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setIsUploadModalOpen(true)}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
@@ -355,6 +630,35 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
           </button>
         </div>
       </div>
+
+      {/* Onboarding Listing Deposit Banner (When Inactive / Pending Deposit) */}
+      {vendorProfile && vendorProfile.deposit_status !== 'paid' && vendorProfile.deposit_status !== 'waived' && (
+        <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50 border-2 border-amber-300 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Profile Inactive &bull; Listing Deposit Required (₹{Number(vendorProfile.deposit_amount || 2000).toLocaleString()})
+                </h3>
+                <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                  Hidden From Marketplace
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
+                Your studio is registered, but not listed on the public landing page. Complete your one-time onboarding deposit of ₹{Number(vendorProfile.deposit_amount || 2000).toLocaleString()} to make your profile live, appear in search, and start receiving client bookings.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsDepositModalOpen(true)}
+            className="self-start md:self-auto px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 hover:scale-[1.02]"
+          >
+            <span>Pay Listing Deposit (₹{Number(vendorProfile.deposit_amount || 2000).toLocaleString()})</span>
+          </button>
+        </div>
+      )}
 
       {/* Availability Switcher Bar (Section 12 Availability Management) */}
       <div className="mb-6 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -409,7 +713,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
       )}
 
       {/* Studio Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         <div
           onClick={() => setActiveTab('gallery')}
           className={`p-5 rounded-xl border transition-all cursor-pointer ${
@@ -529,7 +833,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
-          <span>⭐ Client Reviews</span>
+          <span>Client Reviews</span>
           <span className={`text-[10px] px-2 py-0.2 rounded-full font-bold ${
             activeTab === 'reviews' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
           }`}>
@@ -545,7 +849,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
-          <span>📅 Schedule & Calendar</span>
+          <span>Schedule & Calendar</span>
           {scheduleData.blackouts.length > 0 && (
             <span className="text-[10px] px-2 py-0.2 bg-amber-500 text-white rounded-full font-bold">
               {scheduleData.blackouts.length} off-duty
@@ -562,6 +866,52 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
           }`}
         >
           Profile & Skills
+        </button>
+
+        <button
+          onClick={() => setActiveTab('disputes')}
+          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+            activeTab === 'disputes'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <span>Disputes Desk</span>
+          {vendorComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length > 0 && (
+            <span className="text-[10px] px-2 py-0.2 bg-rose-600 text-white rounded-full font-bold animate-pulse">
+              {vendorComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsAdminSupportOpen(true)}
+          className="relative px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap text-purple-700 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 shadow-2xs"
+          title="Open official Platform Support Desk (Escalations, KYC, Payouts)"
+        >
+          <span>🛡️</span>
+          <span>Platform Support</span>
+          {adminUnread > 0 && (
+            <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-bold rounded-full animate-pulse">
+              {adminUnread}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onOpenChat?.({ scope: 'client' })}
+          className="relative px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 flex items-center gap-1.5 shadow-2xs"
+          title="Open direct client booking conversations"
+        >
+          <span>💬</span>
+          <span>Client Messages</span>
+          {clientUnread > 0 && (
+            <span className="px-1.5 py-0.2 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+              {clientUnread}
+            </span>
+          )}
         </button>
       </div>
 
@@ -590,9 +940,6 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
             </div>
           ) : portfolio.length === 0 ? (
             <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center shadow-xs">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl mx-auto mb-3">
-                📷
-              </div>
               <h3 className="text-sm font-bold text-slate-800">Your Gallery is Empty</h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
                 Upload your cinematography frames, fashion shoots, or gear kits so clients can discover and book you.
@@ -605,52 +952,75 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {portfolio.map((work) => (
-                <div
-                  key={work.id}
-                  className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
-                >
-                  <div className="relative aspect-video bg-slate-900 overflow-hidden flex items-center justify-center">
-                    {work.media_type === 'video' ? (
-                      <video
-                        src={work.media_url}
-                        controls
-                        className="w-full h-full object-cover"
-                      />
-                    ) : work.media_type === 'document' ? (
-                      <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center p-4 text-center">
-                        <span className="text-3xl mb-1">📄</span>
-                        <span className="text-xs font-bold text-slate-800 line-clamp-1">{work.title}</span>
-                        <a
-                          href={work.media_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
-                        >
-                          Open PDF Lookbook &rarr;
-                        </a>
-                      </div>
-                    ) : (
-                      <img
-                        src={work.media_url}
-                        alt={work.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => {
-                          e.target.src = 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800&auto=format&fit=crop&q=60';
-                        }}
-                      />
-                    )}
-                    <span className="absolute top-2.5 right-2.5 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-black/70 text-white backdrop-blur-xs">
-                      {work.media_type === 'document' ? 'PDF Document' : work.media_type === 'video' ? 'Video' : 'Photograph'}
-                    </span>
-                  </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {portfolio.map((work) => {
+                const isExternal =
+                  work.media_url &&
+                  !work.media_url.startsWith('/uploads') &&
+                  !work.media_url.includes('127.0.0.1:5000/uploads') &&
+                  !work.media_url.includes('localhost:5000/uploads');
+                const isInstagram = work.media_url && /(?:instagram\.com|instagr\.am)/i.test(work.media_url);
+                const isYouTube = work.media_url && /(?:youtube\.com|youtu\.be)/i.test(work.media_url);
 
-                  <div className="p-5 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                        {work.title}
-                      </h3>
+                const handleCardAction = () => {
+                  if (isExternal) {
+                    window.open(work.media_url, '_blank', 'noopener,noreferrer');
+                  } else {
+                    setSelectedPreviewWork(work);
+                  }
+                };
+
+                return (
+                  <div
+                    key={work.id}
+                    className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                  >
+                    <div
+                      onClick={handleCardAction}
+                      className="relative aspect-video bg-slate-900 overflow-hidden flex items-center justify-center cursor-pointer"
+                    >
+                      <PortfolioMediaViewer
+                        mediaUrl={work.media_url}
+                        thumbnailUrl={work.thumbnail_url}
+                        mediaType={work.media_type}
+                        title={work.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <span className="absolute top-2.5 right-2.5 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-black/70 text-white backdrop-blur-xs pointer-events-none z-10">
+                        {work.media_type === 'document' ? 'PDF Document' : work.media_type === 'video' ? 'Video' : 'Photograph'}
+                      </span>
+                      <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none z-10">
+                        <span className="px-3 py-1.5 bg-slate-900/80 backdrop-blur-xs text-white text-xs font-semibold rounded-xl shadow-md flex items-center gap-1.5">
+                          {isInstagram ? (
+                            <><span>↗</span> Open on Instagram</>
+                          ) : isYouTube ? (
+                            <><span>↗</span> Watch on YouTube</>
+                          ) : isExternal ? (
+                            <><span>↗</span> Open Link</>
+                          ) : (
+                            <>Click to Preview</>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h3
+                            onClick={handleCardAction}
+                            className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors cursor-pointer"
+                          >
+                            {work.title}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={handleCardAction}
+                            className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                          >
+                            {isInstagram ? 'Open Reel ↗' : isYouTube ? 'Watch Video ↗' : isExternal ? 'Open Link ↗' : 'Preview ↗'}
+                          </button>
+                        </div>
                       {work.description && (
                         <p className="text-xs text-slate-600 mt-1.5 leading-relaxed line-clamp-2">
                           {work.description}
@@ -663,7 +1033,11 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                         Added {new Date(work.created_at).toLocaleDateString()}
                       </span>
                       <button
-                        onClick={() => handleDeletePortfolio(work.id)}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePortfolio(work.id);
+                        }}
                         className="text-xs font-semibold text-rose-600 hover:text-rose-700 cursor-pointer transition-colors"
                       >
                         Remove
@@ -671,8 +1045,9 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
+          </div>
           )}
         </div>
       )}
@@ -717,9 +1092,6 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
             </div>
           ) : filteredBookings.length === 0 ? (
             <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center shadow-xs">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl mx-auto mb-3">
-                📅
-              </div>
               <h3 className="text-sm font-bold text-slate-800">No Bookings in This View</h3>
               <p className="text-xs text-slate-500 mt-1">
                 When customers submit project requirements for your talent, they will appear here.
@@ -738,6 +1110,8 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                         className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded border ${
                           b.status === 'confirmed'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : b.status === 'deliverables_submitted'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200 font-bold'
                             : b.status === 'completed'
                             ? 'bg-blue-50 text-blue-700 border-blue-200'
                             : b.status === 'rejected' || b.status === 'cancelled'
@@ -745,7 +1119,11 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                             : 'bg-amber-50 text-amber-700 border-amber-200'
                         }`}
                       >
-                        {b.status === 'rejected' ? 'Declined / Rejected' : b.status.replace('_', ' ')}
+                        {b.status === 'deliverables_submitted'
+                          ? 'Deliverables Under Review'
+                          : b.status === 'rejected'
+                          ? 'Declined / Rejected'
+                          : b.status.replace('_', ' ')}
                       </span>
                       <span className="text-xs font-semibold text-slate-500">
                         {b.category_name}
@@ -753,9 +1131,31 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                       <span className="text-xs text-slate-400">
                         • Received {new Date(b.created_at).toLocaleDateString()}
                       </span>
+                      {b.crew_bundle_id && (
+                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full inline-flex items-center">
+                          Crew Production
+                        </span>
+                      )}
                     </div>
 
                     <h3 className="text-base font-bold text-slate-900">{b.project_name || b.resource_title}</h3>
+
+                    {b.crew_bundle_id && (
+                      <div className="mt-2.5 p-3 bg-purple-50/70 border border-purple-200/90 rounded-xl text-xs flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-purple-900">
+                            Multi-Talent Project: <span className="font-bold">{b.crew_bundle_name || b.project_name || 'Production Crew'}</span>
+                          </span>
+                          <span className="text-purple-300">•</span>
+                          <span className="text-purple-800">
+                            Your Role: <strong className="font-bold text-purple-950">{b.crew_role || b.category_name}</strong>
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-purple-600 bg-white px-2 py-0.5 rounded border border-purple-200">
+                          {b.crew_bundle_id}
+                        </span>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-slate-600 mt-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
                       <div>
@@ -773,10 +1173,37 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                       </div>
 
                       <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Booking Amount</span>
-                        <span className="text-sm font-bold text-slate-900 font-mono">
-                          ₹{Number(b.total_amount).toLocaleString()}
-                        </span>
+                        <span className="text-[11px] text-slate-400 block font-medium">Payment & Deposit</span>
+                        {(() => {
+                          const bTotal = Number(b.total_amount || 0);
+                          const bPaid = Number(b.paid_amount || 0);
+                          const bBalance = Math.max(0, bTotal - bPaid);
+                          return (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                              <span className="text-sm font-bold text-slate-900 font-mono">
+                                ₹{bTotal.toLocaleString()}
+                              </span>
+                              {b.payment_status === 'paid' || bBalance <= 0 ? (
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  ✓ Paid
+                                </span>
+                              ) : b.payment_status === 'advance_paid' || bPaid > 0 ? (
+                                <>
+                                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                    ✓ Advance (₹{bPaid.toLocaleString()})
+                                  </span>
+                                  <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-300">
+                                    ⚠️ Due: ₹{bBalance.toLocaleString()}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                  Advance: ₹{Number(b.advance_amount || Math.round(bTotal * 0.3)).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -796,11 +1223,10 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                     {(b.status === 'under_review' || b.status === 'availability_check' || b.status === 'new_request') && (
                       <>
                         <button
-                          onClick={() => handleUpdateBookingStatus(b.id, 'confirmed')}
+                          onClick={() => handleUpdateBookingStatus(b.id, 'approved')}
                           disabled={updatingBookingId === b.id}
                           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                         >
-                          <span>✓</span>
                           <span>{updatingBookingId === b.id ? 'Accepting...' : 'Accept Booking'}</span>
                         </button>
                         <button
@@ -808,10 +1234,42 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                           disabled={updatingBookingId === b.id}
                           className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
                         >
-                          <span>✕</span>
                           <span>Decline Request</span>
                         </button>
                       </>
+                    )}
+
+                    {b.status === 'approved' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl font-medium flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                          <span>Awaiting Client Advance Deposit (₹{Number(b.advance_amount || Math.round(Number(b.total_amount) * 0.3)).toLocaleString()})</span>
+                        </span>
+                        <button
+                          onClick={() => handleUpdateBookingStatus(b.id, 'confirmed')}
+                          disabled={updatingBookingId === b.id}
+                          title="Manually confirm if advance was paid directly/offline"
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-xl border border-slate-200 transition-all cursor-pointer"
+                        >
+                          Confirm Offline
+                        </button>
+                      </div>
+                    )}
+
+                    {(b.status === 'confirmed' || b.status === 'deliverables_submitted' || b.status === 'completed') && (
+                      <button
+                        type="button"
+                        onClick={() => setDeliverablesModalBooking(b)}
+                        className={`px-3.5 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shadow-xs ${
+                          b.status === 'deliverables_submitted'
+                            ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent'
+                        }`}
+                        title="Manage Project Deliverables & Client Media Vault"
+                      >
+                        <span>📦</span>
+                        <span>{b.status === 'deliverables_submitted' ? 'Deliverables Under Review' : 'Media Vault'}</span>
+                      </button>
                     )}
 
                     {b.status === 'confirmed' && (
@@ -819,30 +1277,101 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                         <button
                           onClick={() => handleUpdateBookingStatus(b.id, 'completed')}
                           disabled={updatingBookingId === b.id}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
                         >
                           Mark as Completed
                         </button>
                         <button
                           onClick={() => setDeclineModal({ isOpen: true, booking: b })}
                           disabled={updatingBookingId === b.id}
-                          className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl border border-slate-200 transition-all cursor-pointer disabled:opacity-50"
+                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl border border-slate-200 transition-all cursor-pointer disabled:opacity-50"
                         >
                           Cancel
                         </button>
                       </>
                     )}
 
-                    {b.status === 'completed' && (
-                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
-                        ✓ Production Completed
+                    {b.status === 'deliverables_submitted' && (
+                      <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-200">
+                        Awaiting Client Sign-off
                       </span>
                     )}
+
+                    {b.status === 'completed' && (
+                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                        Production Completed
+                      </span>
+                    )}
+
+                    {/* Balance Payment Reminder Action for Vendor */}
+                    {(() => {
+                      const bTotal = Number(b.total_amount || 0);
+                      const bPaid = Number(b.paid_amount || 0);
+                      const bBalance = Math.max(0, bTotal - bPaid);
+                      const hasPendingBalance = bBalance > 0 && (b.status === 'completed' || b.status === 'deliverables_submitted' || b.status === 'confirmed');
+                      const isRecentlyReminded = Boolean(b.last_balance_reminder_at || reminderStatusMap[b.id]?.sent);
+
+                      if (!hasPendingBalance) return null;
+
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleSendBalanceReminder(b)}
+                            disabled={remindingBookingId === b.id}
+                            className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shadow-xs ${
+                              isRecentlyReminded
+                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                                : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold border-transparent shadow-amber-500/20'
+                            }`}
+                            title={`Send balance payment reminder to ${b.customer_name || 'client'} for ₹${bBalance.toLocaleString()}`}
+                          >
+                            <span>🔔</span>
+                            <span>
+                              {remindingBookingId === b.id
+                                ? 'Sending Reminder...'
+                                : isRecentlyReminded
+                                ? `Reminded (₹${bBalance.toLocaleString()})`
+                                : `Remind Balance (₹${bBalance.toLocaleString()})`}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemindBalanceInChat(b)}
+                            className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                            title="Open chat with pre-filled balance reminder message"
+                          >
+                            <span>💬</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
 
                     {(b.status === 'cancelled' || b.status === 'rejected') && (
                       <span className="text-xs font-semibold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200">
                         {b.status === 'rejected' ? 'Declined / Rejected' : 'Cancelled'}
                       </span>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => onOpenChat?.({ bookingId: b.id, customerId: b.customer_id })}
+                      className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                      title="Chat directly with client about this booking"
+                    >
+                      <span>Chat with Client</span>
+                    </button>
+
+                    {Number(b.paid_amount || 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setReceiptModalBooking(b)}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+                        title="View client payment slip and escrow status"
+                      >
+                        Payment Slip
+                      </button>
                     )}
                   </div>
                 </div>
@@ -854,7 +1383,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
 
       {/* TAB 3: PROFILE & SKILLS MANAGEMENT */}
       {activeTab === 'profile' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs max-w-2xl">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs max-w-3xl">
           <div className="mb-6">
             <h2 className="text-lg font-bold text-slate-900">Profile & Experience Settings</h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -898,42 +1427,191 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Base Price (₹)</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 25000"
-                  value={editProfileData.pricing}
-                  onChange={(e) => setEditProfileData({ ...editProfileData, pricing: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Pricing Unit</label>
-                <select
-                  value={editProfileData.pricing_unit}
-                  onChange={(e) => setEditProfileData({ ...editProfileData, pricing_unit: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-                >
-                  <option value="day">Per Day</option>
-                  <option value="hour">Per Hour</option>
-                  <option value="project">Per Project</option>
-                </select>
-              </div>
-            </div>
-
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Skills & Specializations (Comma Separated)</label>
-              <input
-                type="text"
-                placeholder="e.g. ARRI Alexa, High-Speed Lighting, Music Videos, Anamorphic Cine"
-                value={editProfileData.skills}
-                onChange={(e) => setEditProfileData({ ...editProfileData, skills: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-              />
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Primary Discipline / Specialty</label>
+              {categoriesList.length > 0 ? (
+                <select
+                  value={editProfileData.skills}
+                  onChange={(e) => {
+                    const newSkill = e.target.value;
+                    const cat = categoriesList.find((c) => c.name === newSkill);
+                    const newPrice = cat ? cat.recommended_daily_rate : editProfileData.pricing;
+                    setEditProfileData({
+                      ...editProfileData,
+                      skills: newSkill,
+                      pricing: newPrice,
+                    });
+                  }}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all font-medium"
+                >
+                  <option value="">-- Select Creative Specialty --</option>
+                  {categoriesList.map((cat) => (
+                    <option key={cat.id} value={cat.name}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  placeholder="e.g. Cinematographers"
+                  value={editProfileData.skills}
+                  onChange={(e) => setEditProfileData({ ...editProfileData, skills: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                />
+              )}
             </div>
+
+            {/* Category Market Standard & Experience Tiers */}
+            {(() => {
+              const matchedCategory = categoriesList.find(
+                (c) =>
+                  (editProfileData.skills || vendorProfile?.skills || '').toLowerCase() === c.name.toLowerCase() ||
+                  (editProfileData.skills || vendorProfile?.skills || '').toLowerCase().includes(c.name.toLowerCase()) ||
+                  c.name.toLowerCase().includes((editProfileData.skills || vendorProfile?.skills || '').toLowerCase())
+              );
+              const minRate = matchedCategory ? Number(matchedCategory.min_daily_rate) : 1000;
+              const recRate = matchedCategory ? Number(matchedCategory.recommended_daily_rate) : 10000;
+              const maxRate = matchedCategory ? Number(matchedCategory.max_daily_rate) : 50000;
+              const currentRate = Number(editProfileData.pricing || 0);
+
+              const isTooLow = currentRate > 0 && currentRate < minRate;
+              const isTooHigh = currentRate > maxRate;
+              const isValid = currentRate >= minRate && currentRate <= maxRate;
+
+              return (
+                <div className="space-y-4 pt-1">
+                  {matchedCategory && (
+                    <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3.5 text-xs">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="font-bold text-indigo-950">
+                          Market Wage Standards for {matchedCategory.name}
+                        </span>
+                        <span className="text-[10px] font-semibold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                          Admin Governed
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center py-2 bg-white/90 rounded-lg border border-indigo-100 mb-2">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Floor</span>
+                          <span className="font-mono font-bold text-slate-800">₹{minRate.toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-indigo-600 block">Benchmark</span>
+                          <span className="font-mono font-bold text-indigo-700">₹{recRate.toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Affordability Cap</span>
+                          <span className="font-mono font-bold text-slate-800">₹{maxRate.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-indigo-800">
+                        Platform rate guardrails prevent price gouging while guaranteeing fair minimum earnings.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Experience Tier Chips */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Seniority & Experience Level
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'entry', label: 'Rising Talent', sub: 'Early Career', mult: 0.6 },
+                        { id: 'mid', label: 'Established Pro', sub: 'Standard', mult: 1.0 },
+                        { id: 'senior', label: 'Studio Master', sub: 'Elite Director', mult: 1.7 },
+                      ].map((tier) => {
+                        const isSelected = editProfileData.experience_level === tier.id;
+                        const suggestedPrice = Math.min(
+                          Math.max(Math.round((recRate * tier.mult) / 500) * 500, minRate),
+                          maxRate
+                        );
+                        return (
+                          <button
+                            key={tier.id}
+                            type="button"
+                            onClick={() => {
+                              setEditProfileData({
+                                ...editProfileData,
+                                experience_level: tier.id,
+                                pricing: suggestedPrice,
+                              });
+                            }}
+                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500'
+                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            <div className="text-xs font-bold text-slate-900">{tier.label}</div>
+                            <div className="text-[10px] text-slate-500">{tier.sub}</div>
+                            <div className="text-[11px] font-mono font-semibold text-indigo-700 mt-1">
+                              ~₹{suggestedPrice.toLocaleString()}/day
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Pricing Inputs & Guardrail Feedback */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-slate-700">Daily Base Rate (₹)</label>
+                        {matchedCategory && (
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Limit: ₹{minRate.toLocaleString()} - ₹{maxRate.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        placeholder={`e.g. ${recRate}`}
+                        value={editProfileData.pricing}
+                        onChange={(e) => setEditProfileData({ ...editProfileData, pricing: e.target.value })}
+                        className={`w-full border rounded-xl px-3.5 py-2 text-xs font-mono font-bold transition-all ${
+                          isTooLow || isTooHigh
+                            ? 'bg-rose-50 border-rose-400 text-rose-900 focus:bg-white'
+                            : isValid
+                            ? 'bg-emerald-50/40 border-emerald-300 text-slate-900 focus:bg-white'
+                            : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
+                        }`}
+                      />
+                      {isTooLow && (
+                        <span className="text-[11px] text-rose-600 font-semibold block mt-1">
+                          Below platform minimum floor of ₹{minRate.toLocaleString()}/day.
+                        </span>
+                      )}
+                      {isTooHigh && (
+                        <span className="text-[11px] text-rose-600 font-semibold block mt-1">
+                          Exceeds platform affordability cap of ₹{maxRate.toLocaleString()}/day.
+                        </span>
+                      )}
+                      {isValid && (
+                        <span className="text-[11px] text-emerald-700 font-semibold block mt-1">
+                          ✓ Standard compliant rate for {matchedCategory?.name || 'discipline'}.
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Pricing Unit</label>
+                      <select
+                        value={editProfileData.pricing_unit}
+                        onChange={(e) => setEditProfileData({ ...editProfileData, pricing_unit: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                      >
+                        <option value="day">Per Day (Standard Daily Wage)</option>
+                        <option value="hour">Per Hour</option>
+                        <option value="project">Per Project</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Professional Bio</label>
@@ -953,6 +1631,118 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
               {savingProfile ? 'Saving Changes...' : 'Save Profile Changes'}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* ================= TAB: DISPUTES & COMPLAINTS DESK ================= */}
+      {activeTab === 'disputes' && (
+        <div className="space-y-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Project Disputes & Client Grievances</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Review complaints raised by clients and provide your official statement to platform administration.
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl">
+              Total Disputes: {vendorComplaints.length}
+            </span>
+          </div>
+
+          {loadingComplaints ? (
+            <div className="py-16 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">
+              Loading dispute records...
+            </div>
+          ) : vendorComplaints.length === 0 ? (
+            <div className="p-12 text-center bg-white border border-dashed border-slate-300 rounded-2xl space-y-2">
+              <h4 className="text-sm font-bold text-slate-800">Clean Dispute Record</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                No complaints or grievances reported for your studio.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {vendorComplaints.map((c) => (
+                <div
+                  key={c.id}
+                  className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-slate-600">
+                        #{c.complaint_number}
+                      </span>
+                      <span className="text-xs font-bold text-slate-900">
+                        {c.project_name}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        ({new Date(c.created_at).toLocaleDateString()})
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {c.status !== 'resolved' && c.status !== 'dismissed' && !c.settlement_agreed && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          c.is_expired ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-amber-50 text-amber-900 border-amber-300'
+                        }`}>
+                          {c.is_expired ? 'SLA Expired (Arbitration)' : `1-Wk SLA: ${c.days_remaining ?? 7}d left (${c.hours_remaining ?? 168}h)`}
+                        </span>
+                      )}
+                      {c.settlement_agreed && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                          Escrow Adjusted: ₹{Number(c.settlement_amount || 0).toLocaleString()}
+                        </span>
+                      )}
+                      <span
+                        className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border ${
+                          c.status === 'resolved'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : c.status === 'dismissed'
+                            ? 'bg-slate-100 text-slate-600 border-slate-200'
+                            : 'bg-amber-50 text-amber-800 border-amber-200 font-bold'
+                        }`}
+                      >
+                        {c.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-xs space-y-2">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span>Client: <strong className="text-slate-900">{c.customer_name}</strong></span>
+                      <span>&bull;</span>
+                      <span>Category: <strong className="text-rose-700 capitalize">{c.category.replace('_', ' ')}</strong></span>
+                      <span>&bull;</span>
+                      <span>Subject: <strong className="text-slate-900">{c.subject}</strong></span>
+                    </div>
+
+                    <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl text-amber-950 font-medium leading-relaxed">
+                      &ldquo;{c.description}&rdquo;
+                    </div>
+
+                    {c.vendor_response ? (
+                      <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-950 text-xs">
+                        <span className="font-bold block mb-1">Your Submitted Statement:</span>
+                        <p className="italic">&ldquo;{c.vendor_response}&rdquo;</p>
+                      </div>
+                    ) : (
+                      <div className="pt-2 flex justify-end">
+                        <button
+                          onClick={() => {
+                            setSelectedDisputeModal(c);
+                            setVendorExplanationText('');
+                          }}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                        >
+                          <span>Submit Official Explanation &rarr;</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -986,9 +1776,6 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
             </div>
           ) : studioReviews.length === 0 ? (
             <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center shadow-xs">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center text-xl mx-auto mb-3">
-                ⭐
-              </div>
               <h3 className="text-sm font-bold text-slate-800">No Client Reviews Yet</h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
                 Once your clients mark assigned shoots as completed and submit their feedback, their verified reviews will appear here.
@@ -1249,7 +2036,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>🟠 Off-Duty & Blocked Ranges</span>
+                  <span>Off-Duty & Blocked Ranges</span>
                   <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.2 rounded-full font-bold">
                     {scheduleData.blackouts.length}
                   </span>
@@ -1264,7 +2051,6 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
 
               {scheduleData.blackouts.length === 0 ? (
                 <div className="py-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                  <span className="text-xl mb-1 block">📅</span>
                   <p className="text-xs text-slate-500 font-medium">No blocked dates.</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     Your studio is available to accept bookings on all open days.
@@ -1299,7 +2085,7 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>🔴 Scheduled Client Shoots</span>
+                  <span>Scheduled Client Shoots</span>
                   <span className="text-xs bg-rose-100 text-rose-800 px-2 py-0.2 rounded-full font-bold">
                     {scheduleData.bookings.length}
                   </span>
@@ -1308,7 +2094,6 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
 
               {scheduleData.bookings.length === 0 ? (
                 <div className="py-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                  <span className="text-xl mb-1 block">🎬</span>
                   <p className="text-xs text-slate-500 font-medium">No confirmed shoots scheduled yet.</p>
                 </div>
               ) : (
@@ -1319,7 +2104,14 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
                       className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3 text-xs"
                     >
                       <div>
-                        <strong className="text-slate-900 block font-bold">{bk.project_name}</strong>
+                        <strong className="text-slate-900 block font-bold">
+                          {bk.project_name}
+                          {bk.crew_bundle_id && (
+                            <span className="ml-2 text-[10px] font-medium text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">
+                              Crew: {bk.crew_role || bk.crew_bundle_name}
+                            </span>
+                          )}
+                        </strong>
                         <span className="text-[11px] text-slate-500 mt-0.5 block">
                           Client: {bk.customer_name || 'Client'} &bull; {new Date(bk.start_date).toLocaleDateString()} &rarr; {new Date(bk.end_date).toLocaleDateString()}
                         </span>
@@ -1369,6 +2161,79 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
         />
       )}
 
+      {/* FULL WORK PREVIEW MODAL / LIGHTBOX */}
+      {selectedPreviewWork && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col relative">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                  {selectedPreviewWork.media_type === 'document'
+                    ? 'PDF Lookbook'
+                    : selectedPreviewWork.media_type === 'video'
+                    ? 'Video / Reel'
+                    : 'Photograph'}
+                </span>
+                <h3 className="text-base font-bold text-slate-900 line-clamp-1">
+                  {selectedPreviewWork.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPreviewWork(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-sm font-bold cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Media Container */}
+            <div className="relative bg-slate-950 flex items-center justify-center min-h-[300px] max-h-[55vh] overflow-hidden">
+              <PortfolioMediaViewer
+                mediaUrl={selectedPreviewWork.media_url}
+                thumbnailUrl={selectedPreviewWork.thumbnail_url}
+                mediaType={selectedPreviewWork.media_type}
+                title={selectedPreviewWork.title}
+                className="max-h-[55vh] w-full object-contain"
+              />
+            </div>
+
+            {/* Details Footer */}
+            <div className="p-5 bg-white border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                {selectedPreviewWork.description ? (
+                  <p className="text-xs text-slate-700 leading-relaxed max-w-md">
+                    {selectedPreviewWork.description}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">No additional gear or production notes.</p>
+                )}
+                <span className="text-[11px] text-slate-400 mt-1 block font-mono">
+                  Uploaded on {new Date(selectedPreviewWork.created_at).toLocaleDateString()}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <a
+                  href={
+                    selectedPreviewWork.media_url?.startsWith('/uploads')
+                      ? `http://127.0.0.1:5000${selectedPreviewWork.media_url}`
+                      : selectedPreviewWork.media_url
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>Open Full Link</span>
+                  <span>↗</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* DECLINE / REJECT BOOKING MODAL */}
       {declineModal.isOpen && (
         <DeclineBookingModal
@@ -1381,6 +2246,373 @@ export default function VendorDashboard({ user, onBackToMarketplace }) {
           }}
         />
       )}
+
+      {/* VENDOR ONBOARDING LISTING DEPOSIT MODAL */}
+      {vendorProfile && (
+        <VendorDepositModal
+          isOpen={isDepositModalOpen}
+          onClose={() => setIsDepositModalOpen(false)}
+          token={token}
+          vendorProfile={vendorProfile}
+          onSuccess={(updatedProfile) => {
+            setIsDepositModalOpen(false);
+            setVendorProfile(updatedProfile);
+            setNotification({
+              type: 'success',
+              message: 'Listing deposit confirmed! Your studio is now live on the marketplace.',
+            });
+          }}
+        />
+      )}
+
+      {/* VENDOR DISPUTE EXPLANATION MODAL */}
+      {selectedDisputeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Dispute Resolution: #{selectedDisputeModal.complaint_number}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Project: {selectedDisputeModal.project_name} &bull; Client: {selectedDisputeModal.customer_name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedDisputeModal(null)}
+                className="text-slate-400 hover:text-slate-700 text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 1-Week Resolution SLA Timer Banner */}
+            {selectedDisputeModal.status !== 'resolved' && selectedDisputeModal.status !== 'dismissed' && !selectedDisputeModal.settlement_agreed && (
+              <div className={`p-3.5 rounded-xl border text-xs shadow-xs ${
+                selectedDisputeModal.is_expired ? 'bg-rose-50 border-rose-200 text-rose-950' : 'bg-amber-50/80 border-amber-300 text-amber-950'
+              }`}>
+                <div className="flex items-center justify-between font-bold mb-1">
+                  <span>{selectedDisputeModal.is_expired ? 'Mutual Settlement SLA Expired' : '1-Week Mutual Settlement SLA Active'}</span>
+                  <span className="font-mono text-[11px]">
+                    {selectedDisputeModal.is_expired ? 'In Platform Arbitration' : `${selectedDisputeModal.days_remaining ?? 7} days remaining (${selectedDisputeModal.hours_remaining ?? 168}h)`}
+                  </span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-700">
+                  {selectedDisputeModal.is_expired
+                    ? 'The 1-week mutual settlement window has expired. Platform administration is conducting binding arbitration.'
+                    : 'You have 1 week from dispute filing to accept the client’s terms or propose an alternate counter-offer. Amicable settlements adjust booking escrow automatically.'}
+                </p>
+              </div>
+            )}
+
+            {/* Customer's Claim Card */}
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-1">
+              <span className="font-bold text-amber-950 block">Customer's Claim:</span>
+              <p className="text-amber-900 leading-relaxed italic">
+                &ldquo;{selectedDisputeModal.description}&rdquo;
+              </p>
+            </div>
+
+            {/* Client's Proposed Resolution Callout */}
+            {(selectedDisputeModal.desired_resolution_type || selectedDisputeModal.desired_resolution || selectedDisputeModal.desired_resolution_amount > 0) && (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl text-xs space-y-1.5 text-emerald-950">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                    <span>Client's Proposed Settlement Terms:</span>
+                  </span>
+                  <span className="text-[10px] uppercase font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
+                    Direct Settlement
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center justify-between text-xs pt-0.5">
+                  <span className="font-medium text-emerald-900">
+                    Desired Outcome: <strong className="capitalize">{(selectedDisputeModal.desired_resolution_type || selectedDisputeModal.desired_resolution)?.replace(/_/g, ' ')}</strong>
+                  </span>
+                  {Number(selectedDisputeModal.desired_resolution_amount || selectedDisputeModal.claimed_amount) > 0 && (
+                    <span className="font-mono font-bold text-sm text-slate-900">
+                      ₹{Number(selectedDisputeModal.desired_resolution_amount || selectedDisputeModal.claimed_amount).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                {selectedDisputeModal.desired_resolution_details && (
+                  <p className="text-emerald-800 italic text-[11px] pt-1 border-t border-emerald-200">
+                    &ldquo;{selectedDisputeModal.desired_resolution_details}&rdquo;
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Navigation Tabs for Actions */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setDisputeActionTab('settle')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  disputeActionTab === 'settle'
+                    ? 'bg-white text-emerald-700 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Accept Client Offer
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisputeActionTab('counter')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  disputeActionTab === 'counter'
+                    ? 'bg-white text-blue-700 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Submit Counter-Offer
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisputeActionTab('statement')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  disputeActionTab === 'statement'
+                    ? 'bg-white text-purple-700 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Admin Defense
+              </button>
+            </div>
+
+            {/* TAB 1: ACCEPT CLIENT OFFER */}
+            {disputeActionTab === 'settle' && (
+              <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl text-xs text-slate-800 space-y-3">
+                <div>
+                  <h4 className="font-bold text-emerald-950 text-sm">Amicable Direct Settlement</h4>
+                  <p className="text-slate-600 text-[11px] mt-0.5">
+                    Accepting the client's proposal will immediately mark this dispute as resolved without negative platform strikes or waiting for administrator intervention.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg border border-emerald-200 space-y-1 text-xs">
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span>Proposed Settlement:</span>
+                    <strong className="text-emerald-800 uppercase">
+                      {(selectedDisputeModal.desired_resolution_type || selectedDisputeModal.desired_resolution)?.replace(/_/g, ' ')}
+                    </strong>
+                  </div>
+                  {Number(selectedDisputeModal.desired_resolution_amount || selectedDisputeModal.claimed_amount) > 0 && (
+                    <div className="flex items-center justify-between text-slate-600">
+                      <span>Agreed Refund Value:</span>
+                      <strong className="font-mono text-slate-900">
+                        ₹{Number(selectedDisputeModal.desired_resolution_amount || selectedDisputeModal.claimed_amount).toLocaleString()}
+                      </strong>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-emerald-200">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDisputeModal(null)}
+                    className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={acceptingClientOffer}
+                    onClick={handleAcceptClientOffer}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>{acceptingClientOffer ? 'Accepting & Resolving...' : 'Confirm & Settle Dispute Now'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: PROPOSE COUNTER-OFFER */}
+            {disputeActionTab === 'counter' && (
+              <form onSubmit={handleSubmitCounterOffer} className="space-y-3">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
+                  Propose alternative terms if you cannot accept the client's original proposal. The client can accept your terms to settle immediately.
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Counter Settlement Type <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={counterOfferType}
+                      onChange={(e) => setCounterOfferType(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-blue-600"
+                    >
+                      <option value="partial_refund">Partial Goodwill Refund (₹)</option>
+                      <option value="reshoot_reedit">Free Reshoot / Edit Revision</option>
+                      <option value="raw_assets">Delivery of Raw Footage / Assets</option>
+                      <option value="other">Alternative Settlement</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Offered Amount (₹) {counterOfferType === 'partial_refund' ? '*' : '(Optional)'}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 1000"
+                        value={counterOfferAmount}
+                        onChange={(e) => setCounterOfferAmount(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-7 pr-3 py-2 text-xs text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Specific Counter-Terms / Explanation <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="e.g. Can provide ₹1,000 refund + deliver 5 free retouched stills by tomorrow evening..."
+                    value={counterOfferDetails}
+                    onChange={(e) => setCounterOfferDetails(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 leading-relaxed"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDisputeModal(null)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!counterOfferDetails.trim() || submittingCounterOffer}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {submittingCounterOffer ? 'Sending...' : 'Deliver Counter-Offer to Client &rarr;'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* TAB 3: ADMIN STATEMENT / DEFENSE */}
+            {disputeActionTab === 'statement' && (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!vendorExplanationText.trim() || submittingExplanation) return;
+                  setSubmittingExplanation(true);
+                  try {
+                    const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${selectedDisputeModal.id}/vendor-response`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({ explanation: vendorExplanationText.trim() }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setSelectedDisputeModal(null);
+                      setVendorExplanationText('');
+                      fetchVendorComplaints();
+                      setNotification({
+                        type: 'success',
+                        message: 'Your official explanation was submitted to platform administration.',
+                      });
+                    } else {
+                      alert(data.message || 'Failed to submit explanation.');
+                    }
+                  } catch (err) {
+                    alert('Network error. Please try again.');
+                  } finally {
+                    setSubmittingExplanation(false);
+                  }
+                }}
+                className="space-y-3"
+              >
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Your Official Statement & Defense <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    placeholder="Explain production circumstances, timeline compliance, shoot delivery proof, or reasons for disagreement..."
+                    value={vendorExplanationText}
+                    onChange={(e) => setVendorExplanationText(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-purple-600 leading-relaxed"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDisputeModal(null)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!vendorExplanationText.trim() || submittingExplanation}
+                    className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {submittingExplanation ? 'Submitting...' : 'Submit to Admin Desk &rarr;'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Official Transaction Receipt Modal for Bookings */}
+      <ReceiptModal
+        isOpen={Boolean(receiptModalBooking)}
+        bookingId={receiptModalBooking?.id}
+        token={token}
+        onClose={() => setReceiptModalBooking(null)}
+      />
+
+      {/* Official Listing Deposit Receipt Modal */}
+      <ReceiptModal
+        isOpen={isVendorDepositReceiptOpen}
+        vendorId={vendorProfile?.id}
+        token={token}
+        onClose={() => setIsVendorDepositReceiptOpen(false)}
+      />
+
+      {/* Dedicated Platform Administration Support Desk Modal */}
+      <AdminSupportDeskModal
+        isOpen={isAdminSupportOpen}
+        onClose={() => {
+          setIsAdminSupportOpen(false);
+          fetchUnreadStats();
+        }}
+        user={user}
+        token={token}
+      />
+
+      {/* Project Deliverables & Media Vault Modal */}
+      <DeliverablesVaultModal
+        isOpen={Boolean(deliverablesModalBooking)}
+        booking={deliverablesModalBooking}
+        user={user}
+        token={token}
+        onClose={() => setDeliverablesModalBooking(null)}
+        onDeliverableUpdated={() => fetchBookings()}
+        onOpenChat={onOpenChat}
+      />
     </main>
   );
 }
@@ -1396,10 +2628,10 @@ function BlockDatesModal({ isOpen, onClose, onSuccess, token }) {
   const todayStr = new Date().toISOString().split('T')[0];
 
   const presets = [
-    { label: '🎬 External Client Shoot', text: 'External Client Shoot' },
-    { label: '🏖️ Personal Vacation / Off-Duty', text: 'Personal Vacation / Off-Duty' },
-    { label: '🛠️ Equipment Maintenance', text: 'Camera & Lighting Servicing' },
-    { label: '✈️ Traveling / On Location', text: 'Traveling for Outstation Production' },
+    { label: 'External Client Shoot', text: 'External Client Shoot' },
+    { label: 'Personal Vacation / Off-Duty', text: 'Personal Vacation / Off-Duty' },
+    { label: 'Equipment Maintenance', text: 'Camera & Lighting Servicing' },
+    { label: 'Traveling / On Location', text: 'Traveling for Outstation Production' },
   ];
 
   if (!isOpen) return null;
@@ -1551,10 +2783,10 @@ function DeclineBookingModal({ isOpen, onClose, onConfirm, booking }) {
   if (!isOpen || !booking) return null;
 
   const presets = [
-    { label: '🎬 Equipment / Crew already committed to another shoot', text: 'Equipment & crew already committed to another commercial production' },
-    { label: '⏳ Insufficient prep or lead time for project scale', text: 'Insufficient preparation and lead time required for this project scale' },
-    { label: '📍 Shoot location outside our service coverage', text: 'Shoot location is outside our primary service coverage area' },
-    { label: '🏖️ Personal schedule / Crew off-duty holiday', text: 'Personal schedule / crew holiday unavailability' },
+    { label: 'Equipment / Crew already committed to another shoot', text: 'Equipment & crew already committed to another commercial production' },
+    { label: 'Insufficient prep or lead time for project scale', text: 'Insufficient preparation and lead time required for this project scale' },
+    { label: 'Shoot location outside our service coverage', text: 'Shoot location is outside our primary service coverage area' },
+    { label: 'Personal schedule / Crew off-duty holiday', text: 'Personal schedule / crew holiday unavailability' },
   ];
 
   const handleSubmit = async (e) => {
@@ -1874,7 +3106,6 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>📁</span>
             <span>Upload from Device</span>
           </button>
           <button
@@ -1889,7 +3120,6 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>🔗</span>
             <span>Web URL / Presets</span>
           </button>
         </div>
@@ -1898,7 +3128,7 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
         {uploadSource === 'url' && (
           <div className="mb-5 bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="text-[11px] font-semibold text-slate-700 block mb-2">
-              ✨ Quick Showcase Presets:
+              Quick Showcase Presets:
             </span>
             <div className="flex flex-wrap gap-1.5">
               {presets.map((p, idx) => (
@@ -1942,7 +3172,6 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>📷</span>
                 <span>Photo / Image</span>
               </button>
 
@@ -1955,7 +3184,6 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>🎥</span>
                 <span>Video / Reel</span>
               </button>
 
@@ -1968,7 +3196,6 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>📄</span>
                 <span>PDF Lookbook</span>
               </button>
             </div>
@@ -1997,9 +3224,6 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
 
                 {selectedFile ? (
                   <div className="flex flex-col items-center">
-                    <span className="text-3xl mb-1">
-                      {mediaType === 'video' ? '🎥' : mediaType === 'document' ? '📄' : '📷'}
-                    </span>
                     <span className="text-xs font-bold text-slate-900 max-w-xs truncate">
                       {selectedFile.name}
                     </span>
@@ -2048,30 +3272,39 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
             /* ================= OPTION 2: URL INPUT ================= */
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Media File / Thumbnail URL *
+                Media File / Online Video URL *
               </label>
               <input
                 type="url"
                 required
-                placeholder="https://images.unsplash.com/... or https://domain.com/video.mp4"
+                placeholder={
+                  mediaType === 'video'
+                    ? 'Paste Instagram Reel, YouTube, Vimeo, or MP4 link...'
+                    : 'https://images.unsplash.com/... or image link'
+                }
                 value={mediaUrl}
                 onChange={(e) => setMediaUrl(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
               />
+              <p className="text-[11px] text-slate-500 mt-1">
+                {mediaType === 'video'
+                  ? 'Supports Instagram Reels & Posts, YouTube videos & shorts, Vimeo, and direct MP4/WebM URLs.'
+                  : 'Supports Unsplash, CDN images, or direct image file links.'}
+              </p>
 
-              {mediaUrl && mediaType === 'image' && (
+              {mediaUrl && (
                 <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
                   <span className="text-[10px] font-semibold text-slate-500 uppercase block mb-1.5">
                     Live URL Preview:
                   </span>
-                  <img
-                    src={mediaUrl}
-                    alt="Preview"
-                    className="w-full h-36 object-cover rounded-lg"
-                    onError={(e) => {
-                      e.target.src = 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800&auto=format&fit=crop&q=60';
-                    }}
-                  />
+                  <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-950">
+                    <PortfolioMediaViewer
+                      mediaUrl={mediaUrl}
+                      mediaType={mediaType}
+                      title={title || 'Preview'}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                 </div>
               )}
             </div>

@@ -109,6 +109,10 @@ export default function VendorModal({ isOpen, onClose, onSuccess, token }) {
             />
           </div>
 
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+            ⚡ <strong>Listing Deposit:</strong> A ₹2,000 onboarding deposit is required to activate your public profile and start receiving client bookings. You can pay immediately or anytime from your Studio Dashboard.
+          </div>
+
           <button
             type="submit"
             disabled={submitting}

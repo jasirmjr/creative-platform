@@ -5,15 +5,20 @@ import ProfessionalDetailModal from './ProfessionalDetailModal';
 
 export default function Dashboard({
   user,
+  token: propToken,
   onOpenAuth,
   onNavigateToAdmin,
   onNavigateToStudio,
   onNavigateToCustomerProjects,
   onAddToCart,
   onOpenCart,
+  onOpenChat,
 }) {
   // Approved Vendors State
   const [vendors, setVendors] = useState([]);
+  const [categoriesList, setCategoriesList] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [vendorSearch, setVendorSearch] = useState('');
   const [loadingVendors, setLoadingVendors] = useState(true);
 
   const [bookingItem, setBookingItem] = useState(null);
@@ -21,16 +26,22 @@ export default function Dashboard({
   const [activeBookingsCount, setActiveBookingsCount] = useState(0);
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
 
-  const token = localStorage.getItem('token');
+  const token = propToken || sessionStorage.getItem('token');
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
-  // Load Approved / Verified Vendors for Landing Page
+  // Load Approved / Verified Active Vendors for Landing Page
   const fetchVendors = async () => {
     setLoadingVendors(true);
     try {
       const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/list?status=verified');
       const data = await res.json();
-      if (data.success) setVendors(data.data);
+      if (data.success && Array.isArray(data.data)) {
+        // Only list active ventures (non-deleted, available, and deposit paid/waived)
+        const activeOnly = data.data.filter(
+          (v) => !v.is_deleted && v.availability_status !== 'unavailable' && (v.deposit_status === 'paid' || v.deposit_status === 'waived')
+        );
+        setVendors(activeOnly);
+      }
     } catch (err) {
       console.error('Failed to load vendors:', err);
     } finally {
@@ -38,8 +49,22 @@ export default function Dashboard({
     }
   };
 
+  // Load Categories for Filter Pills & Standards
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/categories');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setCategoriesList(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load categories:', err);
+    }
+  };
+
   useEffect(() => {
     fetchVendors();
+    fetchCategories();
   }, []);
 
   // Load User Bookings Count
@@ -83,11 +108,49 @@ export default function Dashboard({
   };
 
   const stats = [
-    { label: 'Approved Talent & Studios', value: vendors.length.toString(), change: 'Verified Production Partners' },
+    { label: 'Active Talent & Studios', value: vendors.length.toString(), change: 'Verified Production Partners' },
     { label: 'Marketplace Trust', value: vendors.length > 0 ? '100% VETTED' : 'READY', change: 'Identity & Portfolios Verified' },
     { label: 'Active Bookings', value: activeBookingsCount.toString(), change: user ? 'Tracked in DB' : 'Sign in to track' },
     { label: 'Account Role', value: user?.role ? user.role.toUpperCase() : 'GUEST', change: user ? 'Authenticated' : 'Sign in required' },
   ];
+
+  // Calculate vendor count for a specific category
+  const getCategoryVendorCount = (catName) => {
+    return vendors.filter(
+      (v) =>
+        v.skills &&
+        (v.skills.toLowerCase() === catName.toLowerCase() ||
+          v.skills.toLowerCase().includes(catName.toLowerCase()) ||
+          catName.toLowerCase().includes(v.skills.toLowerCase()))
+    ).length;
+  };
+
+  // Catalog categories for marketplace tabs
+  const displayedCategories = categoriesList;
+
+  // Filter vendors based on category and search
+  const filteredVendors = vendors.filter((v) => {
+    if (selectedCategory !== 'all') {
+      const match =
+        v.skills &&
+        (v.skills.toLowerCase() === selectedCategory.toLowerCase() ||
+          v.skills.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+          selectedCategory.toLowerCase().includes(v.skills.toLowerCase()));
+      if (!match) return false;
+    }
+    if (vendorSearch.trim()) {
+      const q = vendorSearch.toLowerCase();
+      const match =
+        (v.business_name || '').toLowerCase().includes(q) ||
+        (v.owner_name || '').toLowerCase().includes(q) ||
+        (v.skills || '').toLowerCase().includes(q) ||
+        (v.location || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const activeCategoryObj = categoriesList.find((c) => c.name === selectedCategory);
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -111,7 +174,7 @@ export default function Dashboard({
               onClick={onNavigateToAdmin}
               className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
             >
-              <span>🛡️ Open Admin Console</span>
+              <span>Open Admin Console</span>
               <span>&rarr;</span>
             </button>
           ) : user?.role === 'vendor' ? (
@@ -119,7 +182,7 @@ export default function Dashboard({
               onClick={onNavigateToStudio}
               className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
             >
-              <span>🎨 Open My Studio Dashboard</span>
+              <span>Open My Studio Dashboard</span>
               <span>&rarr;</span>
             </button>
           ) : user?.role === 'customer' ? (
@@ -129,7 +192,7 @@ export default function Dashboard({
                   onClick={onNavigateToCustomerProjects}
                   className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>🎬 My Projects & Bookings</span>
+                  <span>My Projects & Bookings</span>
                   <span>&rarr;</span>
                 </button>
               )}
@@ -143,22 +206,20 @@ export default function Dashboard({
           ) : (
             <div className="flex flex-wrap items-center gap-2.5">
               <button
-                onClick={() => onOpenAuth('register')}
-                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
+                onClick={() => {
+                  const elem = document.getElementById('marketplace-listings');
+                  if (elem) elem.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
               >
-                Register as Client
+                <span>Explore Talent & Studios</span>
+                <span>↓</span>
               </button>
               <button
-                onClick={() => onOpenAuth('login')}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-200 transition-colors cursor-pointer"
+                onClick={() => onOpenAuth('register', 'vendor')}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-200 transition-colors cursor-pointer flex items-center gap-1.5"
               >
-                Sign In
-              </button>
-              <button
-                onClick={handleOpenVendorModal}
-                className="px-3 py-2.5 text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors cursor-pointer"
-              >
-                + Register as Vendor
+                <span>Join as Vendor</span>
               </button>
             </div>
           )}
@@ -175,16 +236,18 @@ export default function Dashboard({
           </div>
         ))}
       </div>
-      {/* Approved Creative Talent & Studios */}
-      <div className="mb-12">
-        <div className="flex items-center justify-between mb-6">
+      {/* Active Creative Talent & Studios */}
+      <div id="marketplace-listings" className="mb-12 scroll-mt-20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Approved Creative Talent & Studios</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Vetted and approved production partners, creators, and rental providers.</p>
+            <h2 className="text-xl font-bold text-slate-900">Active Creative Talent & Studios</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Vetted and active production partners, creators, and rental providers categorized by discipline.
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              {vendors.length} Approved & Verified
+              {filteredVendors.length} Listed ({vendors.length} Total Verified)
             </span>
             {isAdmin && onNavigateToAdmin && (
               <button
@@ -198,34 +261,168 @@ export default function Dashboard({
           </div>
         </div>
 
+        {/* Category Filter Toolbar & Search Bar */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs mb-6 space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Browse Creative Disciplines ({categoriesList.length})
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Verified creative professionals equipped with production-grade equipment
+              </p>
+            </div>
+
+            {/* Keyword Search */}
+            <div className="w-full sm:w-72">
+              <input
+                type="text"
+                placeholder="Search by studio, talent, location..."
+                value={vendorSearch}
+                onChange={(e) => setVendorSearch(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Horizontally Scrollable Category Pill Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('all')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                selectedCategory === 'all'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+              }`}
+            >
+              All Specialties ({vendors.length})
+            </button>
+
+            {displayedCategories.map((cat) => {
+              const isSelected = selectedCategory === cat.name;
+              const count = getCategoryVendorCount(cat.name);
+              return (
+                <button
+                  key={cat.id || cat.name}
+                  type="button"
+                  onClick={() => setSelectedCategory(isSelected ? 'all' : cat.name)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                  }`}
+                >
+                  <span>{cat.name}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      isSelected
+                        ? 'bg-white/20 text-white'
+                        : count > 0
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-slate-200/80 text-slate-500'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Active Category Market Guidance Banner */}
+        {selectedCategory !== 'all' && activeCategoryObj && (
+          <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+            <div>
+              <h3 className="text-sm font-bold text-indigo-950">{activeCategoryObj.name}</h3>
+              {activeCategoryObj.description && (
+                <p className="text-xs text-indigo-800/80 mt-0.5">{activeCategoryObj.description}</p>
+              )}
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mt-2 font-mono">
+                <span>
+                  Floor: <strong className="text-slate-900">₹{Number(activeCategoryObj.min_daily_rate).toLocaleString()}</strong>
+                </span>
+                <span>•</span>
+                <span>
+                  Market Benchmark: <strong className="text-indigo-900 font-bold">₹{Number(activeCategoryObj.recommended_daily_rate).toLocaleString()}/day</strong>
+                </span>
+                <span>•</span>
+                <span>
+                  Cap: <strong className="text-slate-900">₹{Number(activeCategoryObj.max_daily_rate).toLocaleString()}</strong>
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('all')}
+              className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 self-start sm:self-center"
+            >
+              Show All Specialties
+            </button>
+          </div>
+        )}
+
         {loadingVendors ? (
           <div className="py-12 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl">
             Loading approved vendors...
           </div>
-        ) : vendors.length === 0 ? (
-          <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-10 text-center">
-            <p className="text-sm font-semibold text-slate-700">No approved vendors listed yet.</p>
-            <p className="text-xs text-slate-500 mt-1">Vendor registrations are currently under admin review.</p>
+        ) : filteredVendors.length === 0 ? (
+          <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-10 text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 text-xl font-bold mx-auto flex items-center justify-center">
+              Catalog
+            </div>
+            <h3 className="text-base font-bold text-slate-900">No Approved Vendors Found</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              {selectedCategory !== 'all' || vendorSearch
+                ? 'No approved vendors match the selected specialty or search term. Try resetting your search filters.'
+                : 'No approved vendors are currently listed in the marketplace.'}
+            </p>
+            {(selectedCategory !== 'all' || vendorSearch) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('all');
+                  setVendorSearch('');
+                }}
+                className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {vendors.map((vendor) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredVendors.map((vendor) => (
               <div
                 key={vendor.id}
-                className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col justify-between"
+                className="group bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-xl hover:border-indigo-300 transition-all flex flex-col justify-between"
               >
                 <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${
-                      vendor.verification_status === 'verified'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : vendor.verification_status === 'rejected'
-                        ? 'bg-rose-50 text-rose-700 border-rose-200'
-                        : 'bg-amber-50 text-amber-700 border-amber-200'
-                    }`}>
-                      {vendor.verification_status === 'verified' ? '✓ Verified' : vendor.verification_status}
-                    </span>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                        vendor.verification_status === 'verified'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {vendor.verification_status === 'verified' ? 'Verified' : vendor.verification_status}
+                      </span>
+
+                      {vendor.skills && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {vendor.skills}
+                        </span>
+                      )}
+
+                      {vendor.experience_level && (
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                          {vendor.experience_level === 'senior' ? 'Master' : vendor.experience_level === 'mid' ? 'Pro' : 'Rising'}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
                       <span className="text-amber-500 font-bold flex items-center gap-0.5">
                         ★ {vendor.avg_rating || '5.0'}
                       </span>
@@ -266,9 +463,17 @@ export default function Dashboard({
                           provider_name: vendor.owner_name,
                         })
                       }
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                     >
-                      Profile & Works
+                      Profile
+                    </button>
+
+                    <button
+                      onClick={() => onOpenChat?.({ vendorId: vendor.id })}
+                      className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg border border-blue-200 transition-colors cursor-pointer flex items-center gap-1"
+                      title="Direct chat with Studio"
+                    >
+                      <span>Message</span>
                     </button>
 
                     <button
@@ -283,7 +488,7 @@ export default function Dashboard({
                           provider_name: vendor.owner_name,
                         })
                       }
-                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
                     >
                       <span>🛒</span>
                       <span>Book Hold</span>
@@ -301,6 +506,7 @@ export default function Dashboard({
         professional={selectedProfessional}
         isOpen={Boolean(selectedProfessional)}
         onClose={() => setSelectedProfessional(null)}
+        onOpenChat={onOpenChat}
         onRequestBooking={(prof) => {
           setSelectedProfessional(null);
           onAddToCart?.(prof);

@@ -14,4 +14,20 @@ router.post(
   categoryController.createCategory
 );
 
+// Admin-only category pricing policy update
+router.patch(
+  '/:id/pricing',
+  verifyToken,
+  authorizeRoles('admin', 'super_admin'),
+  categoryController.updateCategoryPricing
+);
+
+// Admin-only category deletion
+router.delete(
+  '/:id',
+  verifyToken,
+  authorizeRoles('admin', 'super_admin'),
+  categoryController.deleteCategory
+);
+
 module.exports = router;

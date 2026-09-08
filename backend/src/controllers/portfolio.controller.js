@@ -74,21 +74,19 @@ exports.uploadFile = async (req, res) => {
 };
 
 // GET /api/v1/portfolios/my
-// Protected: Returns all gallery works for the logged-in vendor
+// Protected: Returns all gallery works for the logged-in vendor ONLY
 exports.getMyPortfolio = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    let vpRes = await db.query('SELECT id FROM vendor_profiles WHERE user_id = $1', [userId]);
+    const vpRes = await db.query('SELECT id FROM vendor_profiles WHERE user_id = $1', [userId]);
     if (vpRes.rows.length === 0) {
-      const newVp = await db.query(
-        `INSERT INTO vendor_profiles (user_id, business_name, verification_status)
-         VALUES ($1, 'Creative Studio', 'pending')
-         ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
-         RETURNING id;`,
-        [userId]
-      );
-      vpRes = newVp;
+      // User is not a registered vendor or has no studio profile; return empty gallery
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
+      });
     }
     const vendorId = vpRes.rows[0].id;
 
@@ -109,11 +107,62 @@ exports.getMyPortfolio = async (req, res) => {
 };
 
 // POST /api/v1/portfolios
+// Helper to extract preview thumbnail from external media URLs (Instagram, YouTube, Vimeo)
+async function resolveMediaThumbnail(url) {
+  if (!url) return null;
+  const trimmed = url.trim();
+
+  // 1. YouTube
+  const ytMatch = trimmed.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+  if (ytMatch && ytMatch[1]) {
+    return {
+      type: 'youtube',
+      thumbnailUrl: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`,
+    };
+  }
+
+  // 2. Vimeo
+  const vimeoMatch = trimmed.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|video\/|)(\d+)/i);
+  if (vimeoMatch && vimeoMatch[3]) {
+    return {
+      type: 'vimeo',
+      thumbnailUrl: `https://vumbnail.com/${vimeoMatch[3]}.jpg`,
+    };
+  }
+
+  // 3. Instagram
+  const igMatch = trimmed.match(/(?:instagram\.com|instagr\.am)\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i);
+  if (igMatch && igMatch[1]) {
+    const code = igMatch[1];
+    try {
+      const res = await fetch(`https://www.instagram.com/reel/${code}/embed/`);
+      if (res.ok) {
+        const html = await res.text();
+        const matchImg = html.match(/class=["']EmbeddedMediaImage["'][^>]*src=["']([^"']+)["']/i);
+        if (matchImg && matchImg[1]) {
+          return {
+            type: 'instagram',
+            thumbnailUrl: matchImg[1].replace(/&amp;/g, '&'),
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Instagram thumbnail resolution error:', e.message);
+    }
+    return {
+      type: 'instagram',
+      thumbnailUrl: null,
+    };
+  }
+
+  return null;
+}
+
 // Protected: Adds a new work to the vendor's gallery (accepts direct media_url or multipart device file)
 exports.createPortfolioItem = async (req, res) => {
   try {
     const userId = req.user.id;
-    let { title, description, media_url, media_type } = req.body;
+    let { title, description, media_url, media_type, thumbnail_url } = req.body;
 
     // If file was uploaded directly via multipart/form-data
     if (req.file) {
@@ -134,25 +183,26 @@ exports.createPortfolioItem = async (req, res) => {
       media_type = 'image';
     }
 
-    let vpRes = await db.query('SELECT id FROM vendor_profiles WHERE user_id = $1', [userId]);
-    let vendorId;
-
-    if (vpRes.rows.length === 0) {
-      const newVp = await db.query(
-        `INSERT INTO vendor_profiles (user_id, business_name, verification_status)
-         VALUES ($1, 'Creative Studio', 'pending')
-         ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
-         RETURNING id;`,
-        [userId]
-      );
-      vendorId = newVp.rows[0].id;
-    } else {
-      vendorId = vpRes.rows[0].id;
+    // Auto-resolve thumbnail if not provided
+    if (!thumbnail_url && media_url) {
+      const resolved = await resolveMediaThumbnail(media_url);
+      if (resolved && resolved.thumbnailUrl) {
+        thumbnail_url = resolved.thumbnailUrl;
+      }
     }
 
+    const vpRes = await db.query('SELECT id FROM vendor_profiles WHERE user_id = $1', [userId]);
+    if (vpRes.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only registered vendors can upload works to a studio gallery.',
+      });
+    }
+    const vendorId = vpRes.rows[0].id;
+
     const insertQuery = `
-      INSERT INTO portfolios (vendor_id, title, description, media_url, media_type)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO portfolios (vendor_id, title, description, media_url, media_type, thumbnail_url)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *;
     `;
 
@@ -162,6 +212,7 @@ exports.createPortfolioItem = async (req, res) => {
       description || null,
       media_url,
       media_type,
+      thumbnail_url || null,
     ]);
 
     return res.status(201).json({
@@ -230,7 +281,7 @@ exports.getPublicVendorPortfolio = async (req, res) => {
     const { vendorId } = req.params;
 
     const query = `
-      SELECT id, vendor_id, title, description, media_url, media_type, created_at
+      SELECT id, vendor_id, title, description, media_url, media_type, thumbnail_url, created_at
       FROM portfolios
       WHERE vendor_id = $1
       ORDER BY created_at DESC;
@@ -247,3 +298,24 @@ exports.getPublicVendorPortfolio = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
+
+// GET /api/v1/portfolios/media-preview?url=...
+// Public: Extracts clean preview metadata (thumbnail, type) from external media URLs
+exports.getMediaPreview = async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).json({ success: false, message: 'URL parameter is required.' });
+    }
+
+    const resolved = await resolveMediaThumbnail(url);
+    return res.status(200).json({
+      success: true,
+      data: resolved || { type: 'unknown', thumbnailUrl: null },
+    });
+  } catch (error) {
+    console.error('Get Media Preview Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to extract media preview' });
+  }
+};
+

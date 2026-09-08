@@ -33,6 +33,9 @@
   "dependencies": {
   
     
+  "bcryptjs": "^3.0.3",
+  
+    
   "cors": "^2.8.6",
   
     
@@ -54,7 +57,10 @@
   "pg": "^8.23.0",
   
     
-  "razorpay": "^2.9.8"
+  "razorpay": "^2.9.8",
+  
+    
+  "socket.io": "^4.8.3"
   
   },
   

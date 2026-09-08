@@ -14,12 +14,26 @@ router.get('/me', verifyToken, (req, res) => {
   res.status(200).json({ success: true, user: req.user });
 });
 
-// Admin-only user retrieval
+// Admin-only user retrieval & deletion
 router.get(
   '/users',
   verifyToken,
   authorizeRoles('admin', 'super_admin'),
   authController.getAllUsers
+);
+
+router.delete(
+  '/users/:id',
+  verifyToken,
+  authorizeRoles('admin', 'super_admin'),
+  authController.deleteUser
+);
+
+router.patch(
+  '/users/:id/restore',
+  verifyToken,
+  authorizeRoles('admin', 'super_admin'),
+  authController.restoreUser
 );
 
 module.exports = router;

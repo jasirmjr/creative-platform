@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import PortfolioMediaViewer from './PortfolioMediaViewer';
 
 export default function ProfessionalDetailModal({
   professional,
   isOpen,
   onClose,
   onRequestBooking,
+  onOpenChat,
 }) {
   const [portfolio, setPortfolio] = useState([]);
   const [loadingPortfolio, setLoadingPortfolio] = useState(false);
@@ -221,53 +223,55 @@ export default function ProfessionalDetailModal({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {portfolio.map((work) => (
-                <div
-                  key={work.id}
-                  className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-2xs group"
-                >
-                  <div className="aspect-video bg-slate-900 relative overflow-hidden flex items-center justify-center">
-                    {work.media_type === 'video' ? (
-                      <video
-                        src={work.media_url}
-                        controls
+              {portfolio.map((work) => {
+                const isExternal =
+                  work.media_url &&
+                  !work.media_url.startsWith('/uploads') &&
+                  !work.media_url.includes('127.0.0.1:5000/uploads') &&
+                  !work.media_url.includes('localhost:5000/uploads');
+                const isInstagram = work.media_url && /(?:instagram\.com|instagr\.am)/i.test(work.media_url);
+                const isYouTube = work.media_url && /(?:youtube\.com|youtu\.be)/i.test(work.media_url);
+
+                return (
+                  <div
+                    key={work.id}
+                    onClick={() => {
+                      if (isExternal) {
+                        window.open(work.media_url, '_blank', 'noopener,noreferrer');
+                      }
+                    }}
+                    className={`bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-2xs group ${
+                      isExternal ? 'cursor-pointer hover:border-slate-300 transition-colors' : ''
+                    }`}
+                  >
+                    <div className="aspect-video bg-slate-900 relative overflow-hidden flex items-center justify-center">
+                      <PortfolioMediaViewer
+                        mediaUrl={work.media_url}
+                        thumbnailUrl={work.thumbnail_url}
+                        mediaType={work.media_type}
+                        title={work.title}
                         className="w-full h-full object-cover"
                       />
-                    ) : work.media_type === 'document' ? (
-                      <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center p-3 text-center">
-                        <span className="text-2xl mb-1">📄</span>
-                        <span className="text-xs font-bold text-slate-800 line-clamp-1">{work.title}</span>
-                        <a
-                          href={work.media_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1.5 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-semibold rounded-md transition-colors"
-                        >
-                          View PDF Lookbook &rarr;
-                        </a>
+                      <span className="absolute top-2 right-2 text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white backdrop-blur-xs pointer-events-none z-10">
+                        {work.media_type === 'document' ? 'PDF' : work.media_type === 'video' ? 'Video' : 'Photo'}
+                      </span>
+                    </div>
+                    <div className="p-3 flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs font-bold text-slate-900 truncate">{work.title}</h4>
+                        {work.description && (
+                          <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{work.description}</p>
+                        )}
                       </div>
-                    ) : (
-                      <img
-                        src={work.media_url}
-                        alt={work.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => {
-                          e.target.src = 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800&auto=format&fit=crop&q=60';
-                        }}
-                      />
-                    )}
-                    <span className="absolute top-2 right-2 text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-black/70 text-white backdrop-blur-xs">
-                      {work.media_type === 'document' ? 'PDF' : work.media_type === 'video' ? 'Video' : 'Photo'}
-                    </span>
+                      {isExternal && (
+                        <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md flex items-center gap-0.5 shrink-0">
+                          {isInstagram ? 'Reel ↗' : isYouTube ? 'Video ↗' : 'Open ↗'}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="p-3">
-                    <h4 className="text-xs font-bold text-slate-900">{work.title}</h4>
-                    {work.description && (
-                      <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{work.description}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -327,13 +331,26 @@ export default function ProfessionalDetailModal({
         </div>
 
         {/* Action Button */}
-        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
+        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
           <button
             onClick={onClose}
             className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
           >
             Close
           </button>
+
+          {onOpenChat && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenChat({ vendorId: professional.vendor_id || professional.id });
+              }}
+              className="px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            >
+              <span>💬</span>
+              <span>Message Studio</span>
+            </button>
+          )}
 
           <button
             onClick={() => {
@@ -342,7 +359,7 @@ export default function ProfessionalDetailModal({
             }}
             className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
           >
-            <span>Submit Project Requirement / Book Now</span>
+            <span>Book Now</span>
             <span>&rarr;</span>
           </button>
         </div>
