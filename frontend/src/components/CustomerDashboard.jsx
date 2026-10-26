@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ProfessionalDetailModal from './ProfessionalDetailModal';
 import ReviewModal from './ReviewModal';
 import PaymentModal from './PaymentModal';
@@ -7,6 +7,40 @@ import ReceiptModal from './ReceiptModal';
 import ReplacementModal from './ReplacementModal';
 import DeliverablesVaultModal from './DeliverablesVaultModal';
 import { getSocket } from '../utils/socket';
+import {
+  LayoutDashboard,
+  MessageSquare,
+  Video,
+  Sparkles,
+  ShoppingCart,
+  FolderCheck,
+  Scale,
+  Headphones,
+  Settings,
+  HelpCircle,
+  LogOut,
+  Search,
+  CheckCircle2,
+  Clock,
+  CreditCard,
+  AlertCircle,
+  ChevronRight,
+  ChevronDown,
+  ExternalLink,
+  ShieldCheck,
+  Users,
+  MapPin,
+  Star,
+  Receipt,
+  RotateCcw,
+  User,
+  Phone,
+  Mail,
+  Camera,
+  Layers,
+  FileText,
+  Download,
+} from 'lucide-react';
 
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
@@ -27,16 +61,20 @@ export default function CustomerDashboard({
   token: propToken,
   onOpenAuth,
   onBackToMarketplace,
+  onOpenVendorModal,
   onAddToCart,
   onOpenCart,
   onOpenChat,
+  cartCount = 0,
+  onLogout,
 }) {
   // Navigation & Tabs
-  const [mainTab, setMainTab] = useState('vendors'); // 'vendors' | 'projects'
+  const [mainTab, setMainTab] = useState('projects'); // 'projects' | 'vendors' | 'vault' | 'disputes' | 'profile' | 'dashboard'
   const [activeFilter, setActiveFilter] = useState('all');
   const [vendorSearch, setVendorSearch] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
   const [expandedBookingId, setExpandedBookingId] = useState(null);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   // Data States
   const [bookings, setBookings] = useState([]);
@@ -136,12 +174,29 @@ export default function CustomerDashboard({
     }
   };
 
+  // Fetch Unread Messages
+  const fetchUnreadStats = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/v1/chat/unread-count', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUnreadChatCount(data.client_count || data.unread_count || 0);
+      }
+    } catch (err) {
+      // ignore
+    }
+  }, [token]);
+
   useEffect(() => {
     fetchCustomerBookings();
     fetchApprovedVendors();
     fetchMyReviews();
     fetchCustomerComplaints();
-  }, [token]);
+    fetchUnreadStats();
+  }, [token, fetchUnreadStats]);
 
   // Real-time balance payment reminder listener
   useEffect(() => {
@@ -453,6 +508,10 @@ export default function CustomerDashboard({
       : p.booking.status === 'rejected' || p.booking.status === 'cancelled'
   ).length;
 
+  const totalInvested = bookings
+    .filter((b) => b.status === 'confirmed' || b.status === 'completed' || b.payment_status === 'paid' || b.payment_status === 'advance_paid')
+    .reduce((sum, b) => sum + Number(b.paid_amount || 0), 0);
+
   // Filter Projects
   const filteredProjects = groupedProjects.filter((item) => {
     if (activeFilter === 'review') {
@@ -563,178 +622,442 @@ export default function CustomerDashboard({
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header Banner */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <span className="text-[10px] uppercase tracking-wider font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
-            Client Workspace
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-2">
-            Welcome, {user?.name || 'Client'}
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Browse and book approved creative partners, reserve production holds, and track your active shoot milestones.
-          </p>
+    <div className="w-full min-h-[calc(100vh-4rem)] bg-slate-100/60 flex flex-col md:flex-row font-sans">
+      {/* 1. Left Sticky Desktop Sidebar Navigation (Vendor Dashboard Style) */}
+      <aside className="w-full md:w-64 bg-white border-r border-slate-200/90 shrink-0 flex flex-col justify-between sticky top-16 md:h-[calc(100vh-4rem)] md:overflow-y-auto">
+        <div className="p-4 space-y-6">
+          <div>
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-3 mb-2.5 block">
+              Navigation
+            </span>
+            <nav className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setMainTab('dashboard')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  mainTab === 'dashboard'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <LayoutDashboard className={`w-4 h-4 ${mainTab === 'dashboard' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>Dashboard</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onOpenChat?.({ scope: 'client' })}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <MessageSquare className="w-4 h-4 text-slate-400" />
+                  <span>Messages & Inbox</span>
+                </div>
+                {unreadChatCount > 0 && (
+                  <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                    {unreadChatCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMainTab('projects')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  mainTab === 'projects'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Video className={`w-4 h-4 ${mainTab === 'projects' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>My Bookings & Shoots</span>
+                </div>
+                {bookings.length > 0 && (
+                  <span
+                    className={`px-1.5 py-0.5 text-white text-[10px] font-bold rounded-full ${
+                      paymentPendingCount > 0 ? 'bg-purple-600' : 'bg-blue-600'
+                    }`}
+                  >
+                    {bookings.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMainTab('vendors')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  mainTab === 'vendors'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Sparkles className={`w-4 h-4 ${mainTab === 'vendors' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>Explore Talent & Studios</span>
+                </div>
+                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-full">
+                  {vendors.length}
+                </span>
+              </button>
+
+              {onOpenCart && (
+                <button
+                  type="button"
+                  onClick={onOpenCart}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ShoppingCart className="w-4 h-4 text-slate-400" />
+                    <span>Production Hold Cart</span>
+                  </div>
+                  {cartCount > 0 && (
+                    <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                      {cartCount}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setMainTab('vault')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  mainTab === 'vault'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <FolderCheck className={`w-4 h-4 ${mainTab === 'vault' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>Deliverables Vault</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMainTab('disputes')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  mainTab === 'disputes'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Scale className={`w-4 h-4 ${mainTab === 'disputes' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>Disputes Desk</span>
+                </div>
+                {customerComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length > 0 && (
+                  <span className="px-1.5 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded-full">
+                    {customerComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onOpenChat?.({ scope: 'admin' })}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Headphones className="w-4 h-4 text-slate-400" />
+                  <span>Platform Support Desk</span>
+                </div>
+              </button>
+            </nav>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-3 mb-2.5 block">
+              Settings & Account
+            </span>
+            <nav className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setMainTab('profile')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  mainTab === 'profile'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Settings className={`w-4 h-4 ${mainTab === 'profile' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>Client Settings</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  alert(
+                    'Client Guide:\n• Explore talent & add to Hold Cart.\n• Submit dates to request shoot hold.\n• Once approved, pay 30% advance deposit via Razorpay.\n• Chat with creative partners in real-time.\n• Download master shoot files from your Deliverables Vault.'
+                  )
+                }
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <HelpCircle className="w-4 h-4 text-slate-400" />
+                  <span>Help & FAQ</span>
+                </div>
+              </button>
+            </nav>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 self-start md:self-auto">
-          {onOpenCart && (
-            <button
-              onClick={onOpenCart}
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
-            >
-              <span>🛒</span>
-              <span>Hold Cart</span>
-            </button>
-          )}
+        {/* User Card at bottom of Sidebar */}
+        <div className="p-3 m-3 bg-slate-50 border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs overflow-hidden">
+              {user?.profile_image ? (
+                <img src={user.profile_image} alt="" className="w-full h-full object-cover" />
+              ) : (
+                (user?.name || 'C')[0].toUpperCase()
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-900 truncate">
+                {user?.name || 'Client'}
+              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-medium text-emerald-600">Client Active</span>
+              </div>
+            </div>
+          </div>
 
-          {onBackToMarketplace && (
-            <button
-              onClick={onBackToMarketplace}
-              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-200 transition-colors cursor-pointer"
-            >
-              Explore Public Marketplace
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Notification Toast */}
-      {notification && (
-        <div
-          className={`mb-6 p-4 rounded-xl border text-xs font-medium flex items-center justify-between transition-all ${
-            notification.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
-        >
-          <span>{notification.message}</span>
           <button
-            onClick={() => setNotification(null)}
-            className="ml-4 font-bold text-slate-400 hover:text-slate-600 cursor-pointer"
+            type="button"
+            onClick={() => (onLogout ? onLogout() : (sessionStorage.clear(), window.location.reload()))}
+            title="Log Out"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
           >
-            ✕
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
-      )}
+      </aside>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div
-          onClick={() => setMainTab('vendors')}
-          className={`p-5 rounded-xl border transition-all cursor-pointer ${
-            mainTab === 'vendors'
-              ? 'bg-blue-50/60 border-blue-300 ring-2 ring-blue-400/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
-          }`}
-        >
-          <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
-            Approved Talent & Studios
-          </span>
-          <p className="text-3xl font-bold text-slate-900 mt-2">{vendors.length}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Vetted & ready for booking</span>
-        </div>
-
-        <div
-          onClick={() => {
-            setMainTab('projects');
-            setActiveFilter('review');
-          }}
-          className={`p-5 rounded-xl border transition-all cursor-pointer ${
-            mainTab === 'projects' && activeFilter === 'review'
-              ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
-          }`}
-        >
-          <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
-            Under Curation Review
-          </span>
-          <p className="text-3xl font-bold text-slate-900 mt-2">{underReviewCount}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Checking provider availability</span>
-        </div>
-
-        <div
-          onClick={() => {
-            setMainTab('projects');
-            setActiveFilter('payment');
-          }}
-          className={`p-5 rounded-xl border transition-all cursor-pointer ${
-            mainTab === 'projects' && activeFilter === 'payment'
-              ? 'bg-purple-50/60 border-purple-300 ring-2 ring-purple-400/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Payment Ready</span>
-            {paymentPendingCount > 0 && (
-              <span className="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full border border-purple-200 animate-pulse">
-                Action Needed
-              </span>
-            )}
-          </div>
-          <p className="text-3xl font-bold text-slate-900 mt-2">{paymentPendingCount}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Terms approved by curation team</span>
-        </div>
-
-        <div
-          onClick={() => {
-            setMainTab('projects');
-            setActiveFilter('confirmed');
-          }}
-          className={`p-5 rounded-xl border transition-all cursor-pointer ${
-            mainTab === 'projects' && activeFilter === 'confirmed'
-              ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-400/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
-          }`}
-        >
-          <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Confirmed / Active</span>
-          <p className="text-3xl font-bold text-slate-900 mt-2">{confirmedCount}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Production locked & scheduled</span>
-        </div>
-      </div>
-
-      {/* Main Workspace Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 mb-6 pb-2">
-        <button
-          onClick={() => setMainTab('vendors')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
-            mainTab === 'vendors'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <span>Approved Creative Talent & Studios</span>
-          <span
-            className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-              mainTab === 'vendors' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
-            }`}
-          >
-            {vendors.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setMainTab('projects')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
-            mainTab === 'projects'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <span>My Projects & Bookings</span>
-          <span
-            className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-              mainTab === 'projects' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
-            }`}
-          >
-            {bookings.length}
-          </span>
-          {paymentPendingCount > 0 && (
-            <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping"></span>
+      {/* 2. Main Client Workspace Area - Edge-to-Edge Full Width */}
+      <main className="flex-1 min-w-0 bg-slate-100/60 overflow-y-auto pb-16">
+        <div className="px-6 sm:px-10 py-8">
+          {/* Notification Toast */}
+          {notification && (
+            <div
+              className={`mb-6 p-4 rounded-xl border text-xs font-medium flex items-center justify-between transition-all ${
+                notification.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}
+            >
+              <span>{notification.message}</span>
+              <button
+                onClick={() => setNotification(null)}
+                className="ml-4 font-bold text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
           )}
-        </button>
-      </div>
+
+          {/* Section 1: Top Performance Overview Cards (Vendor Dashboard Style) */}
+          <div className="mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div>
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">
+                  CLIENT WORKSPACE OVERVIEW
+                </span>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
+                  Welcome, {user?.name || 'Client'}
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                  Browse and book approved creative partners, reserve production holds, and track your active shoot milestones.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5 self-start sm:self-auto">
+                {onOpenCart && (
+                  <button
+                    type="button"
+                    onClick={onOpenCart}
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span>Hold Cart</span>
+                    {cartCount > 0 && (
+                      <span className="px-1.5 py-0.2 bg-white/25 text-white text-[10px] font-bold rounded-full">
+                        {cartCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {onBackToMarketplace && (
+                  <button
+                    type="button"
+                    onClick={onBackToMarketplace}
+                    className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200/90 transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Explore Public Marketplace</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 5 Clean Metrics Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+              <div
+                onClick={() => setMainTab('vendors')}
+                className="p-4 bg-white border border-slate-200/90 hover:border-blue-300 rounded-2xl shadow-xs transition-all cursor-pointer group"
+              >
+                <span className="text-xs font-semibold text-slate-500 block group-hover:text-blue-600 transition-colors">
+                  Approved Talent
+                </span>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{vendors.length}</p>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">Vetted ready for booking</span>
+              </div>
+
+              <div
+                onClick={() => {
+                  setMainTab('projects');
+                  setActiveFilter('review');
+                }}
+                className="p-4 bg-white border border-slate-200/90 hover:border-amber-300 rounded-2xl shadow-xs transition-all cursor-pointer group"
+              >
+                <span className="text-xs font-semibold text-slate-500 block group-hover:text-amber-600 transition-colors">
+                  Booking Requests
+                </span>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{underReviewCount}</p>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">Awaiting curation check</span>
+              </div>
+
+              <div
+                onClick={() => {
+                  setMainTab('projects');
+                  setActiveFilter('payment');
+                }}
+                className="p-4 bg-white border border-slate-200/90 hover:border-purple-300 rounded-2xl shadow-xs transition-all cursor-pointer group relative overflow-hidden"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500 block group-hover:text-purple-600 transition-colors">
+                    Payment Ready
+                  </span>
+                  {paymentPendingCount > 0 && (
+                    <span className="text-[9px] font-bold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full border border-purple-200 animate-pulse">
+                      Action
+                    </span>
+                  )}
+                </div>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{paymentPendingCount}</p>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">Terms approved</span>
+              </div>
+
+              <div
+                onClick={() => {
+                  setMainTab('projects');
+                  setActiveFilter('confirmed');
+                }}
+                className="p-4 bg-white border border-slate-200/90 hover:border-emerald-300 rounded-2xl shadow-xs transition-all cursor-pointer group"
+              >
+                <span className="text-xs font-semibold text-slate-500 block group-hover:text-emerald-600 transition-colors">
+                  Confirmed Shoots
+                </span>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{confirmedCount}</p>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">Locked productions</span>
+              </div>
+
+              <div className="p-4 bg-white border border-slate-200/90 rounded-2xl shadow-xs">
+                <span className="text-xs font-semibold text-slate-500 block">Gross Invested</span>
+                <p className="text-2xl font-bold text-slate-900 mt-1">₹{totalInvested.toLocaleString()}</p>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">Secured escrow value</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Workspace Horizontal Sub-Navigation Tabs */}
+          <div className="flex items-center gap-6 border-b border-slate-200 mb-6 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setMainTab('projects')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 border-b-2 ${
+                mainTab === 'projects' || mainTab === 'dashboard'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              <span>Assigned Projects & Bookings</span>
+              {bookings.length > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                    paymentPendingCount > 0
+                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                      : 'bg-blue-50 text-blue-700 border border-blue-200'
+                  }`}
+                >
+                  {bookings.length} {paymentPendingCount > 0 ? '• Action' : ''}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMainTab('vendors')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 border-b-2 ${
+                mainTab === 'vendors'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              <span>Approved Creative Talent & Studios</span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full font-bold">
+                {vendors.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMainTab('vault')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 border-b-2 ${
+                mainTab === 'vault'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              <span>Deliverables Vault</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMainTab('disputes')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 border-b-2 ${
+                mainTab === 'disputes'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              <span>Disputes Desk</span>
+              {customerComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-full font-bold">
+                  {customerComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMainTab('profile')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 border-b-2 ${
+                mainTab === 'profile'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              <span>Client Settings</span>
+            </button>
+          </div>
 
       {/* ================= TAB 1: APPROVED TALENT & STUDIOS ================= */}
       {mainTab === 'vendors' && (
@@ -902,7 +1225,7 @@ export default function CustomerDashboard({
       )}
 
       {/* ================= TAB 2: MY PROJECTS & BOOKINGS ================= */}
-      {mainTab === 'projects' && (
+      {(mainTab === 'projects' || mainTab === 'dashboard') && (
         <div className="space-y-6">
           {/* Real-time Studio Balance Payment Reminder Alert */}
           {balanceReminderAlert && (
@@ -2112,6 +2435,289 @@ export default function CustomerDashboard({
         </div>
       )}
 
+      {/* ================= TAB 3: DELIVERABLES VAULT ================= */}
+      {mainTab === 'vault' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                Shoot Deliverables & Media Vault
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Browse final high-resolution files, video cuts, raw footage links, and proof albums uploaded by your creative partners.
+              </p>
+            </div>
+          </div>
+
+          {bookings.filter((b) => b.status === 'confirmed' || b.status === 'completed' || b.payment_status === 'paid').length === 0 ? (
+            <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center">
+              <FolderCheck className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <h3 className="text-sm font-bold text-slate-800">Vault Empty</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                Deliverables will be published directly here once your confirmed shoots are completed by your creative team.
+              </p>
+              <button
+                type="button"
+                onClick={() => setMainTab('projects')}
+                className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+              >
+                View Active Shoots &rarr;
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {bookings
+                .filter((b) => b.status === 'confirmed' || b.status === 'completed' || b.payment_status === 'paid')
+                .map((b) => (
+                  <div
+                    key={b.id}
+                    className="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl p-5 shadow-xs transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                          {b.category_name || 'Production'}
+                        </span>
+                        <span className="text-xs font-mono text-slate-400">
+                          #{b.id.slice(0, 8)}
+                        </span>
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 line-clamp-1">
+                        {b.project_name || b.resource_title || 'Creative Production Shoot'}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Partner: <strong className="text-slate-700">{b.business_name || b.provider_name}</strong>
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Shoot Date: {b.start_date ? new Date(b.start_date).toLocaleDateString() : 'N/A'}
+                      </p>
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Deliverables Vault</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDeliverablesModalBooking(b)}
+                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                      >
+                        <FolderCheck className="w-3.5 h-3.5" />
+                        <span>Open Vault</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================= TAB 4: DISPUTES & RESOLUTION DESK ================= */}
+      {mainTab === 'disputes' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                Disputes & Grievance Resolution Desk
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Track issues raised with creative partners, review partner statements, and access platform administration mediation.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onOpenChat?.({ scope: 'admin' })}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Headphones className="w-3.5 h-3.5" />
+              <span>Contact Platform Mediator</span>
+            </button>
+          </div>
+
+          {customerComplaints.length === 0 ? (
+            <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center">
+              <Scale className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <h3 className="text-sm font-bold text-slate-800">No Active Disputes</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                All your creative bookings and shoot deliveries are in good standing without any grievances.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {customerComplaints.map((c) => (
+                <div
+                  key={c.id}
+                  className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs transition-all"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          c.status === 'resolved'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : c.status === 'under_review'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}
+                      >
+                        {c.status.replace('_', ' ').toUpperCase()}
+                      </span>
+                      <span className="text-xs font-bold text-slate-900">
+                        {c.reason || 'Service Quality Grievance'}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400">
+                      Filed: {new Date(c.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    {c.details || 'Grievance details under review.'}
+                  </p>
+
+                  {c.vendor_explanation && (
+                    <div className="mt-3 p-3 bg-blue-50/70 border border-blue-100 rounded-xl">
+                      <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wide block mb-1">
+                        Official Statement from Creative Partner:
+                      </span>
+                      <p className="text-xs text-blue-950 font-normal">
+                        {c.vendor_explanation}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Booking #{c.booking_id?.slice(0, 8)}</span>
+                    <button
+                      type="button"
+                      onClick={() => onOpenChat?.({ bookingId: c.booking_id, scope: 'client' })}
+                      className="text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                    >
+                      Chat with Studio &rarr;
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================= TAB 5: CLIENT PROFILE & SETTINGS ================= */}
+      {mainTab === 'profile' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                Client Profile & Settings
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Manage your contact details, active booking preferences, and account credentials.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left 2 Cols: Profile Card */}
+            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white font-extrabold text-2xl flex items-center justify-center shadow-md overflow-hidden">
+                  {user?.profile_image ? (
+                    <img src={user.profile_image} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    (user?.name || 'C')[0].toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">{user?.name || 'Client'}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold rounded-full">
+                      ✓ Verified Client Account
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">ID: {user?.id?.slice(0, 8) || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                    Full Name
+                  </span>
+                  <p className="text-sm font-bold text-slate-900 mt-1">{user?.name || 'Client'}</p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                    Email Address
+                  </span>
+                  <p className="text-sm font-bold text-slate-900 mt-1">{user?.email || 'client@example.com'}</p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                    Mobile Number
+                  </span>
+                  <p className="text-sm font-bold text-slate-900 mt-1">{user?.mobile || '+91 - Not Set'}</p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                    Account Role
+                  </span>
+                  <p className="text-sm font-bold text-slate-900 mt-1 capitalize">{user?.role || 'Customer'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right 1 Col: Quick Actions & Overview */}
+            <div className="space-y-4">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">
+                  Account Statistics
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Total Bookings</span>
+                    <span className="font-bold text-slate-900">{bookings.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Confirmed Shoots</span>
+                    <span className="font-bold text-emerald-600">{confirmedCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Gross Invested</span>
+                    <span className="font-bold text-slate-900">₹{totalInvested.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-2.5">
+                <button
+                  type="button"
+                  onClick={onOpenCart}
+                  className="w-full py-2.5 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>Open Production Hold Cart</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => (onLogout ? onLogout() : (sessionStorage.clear(), window.location.reload()))}
+                  className="w-full py-2.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out of Account</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Professional Profile Detail Modal */}
       <ProfessionalDetailModal
         professional={selectedProfessional}
@@ -2206,6 +2812,8 @@ export default function CustomerDashboard({
         onOpenReview={(b) => setSelectedReviewBooking(b)}
         onOpenChat={onOpenChat}
       />
-    </main>
+        </div>
+      </main>
+    </div>
   );
 }

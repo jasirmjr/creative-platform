@@ -321,7 +321,9 @@ export default function App() {
             onOpenVendorModal={() => handleOpenAuth('register', 'vendor')}
             onAddToCart={handleAddToCart}
             onOpenCart={() => setIsCartOpen(true)}
+            cartCount={cart.length}
             onOpenChat={handleOpenChat}
+            onLogout={handleLogout}
           />
         ) : (
           <Dashboard
