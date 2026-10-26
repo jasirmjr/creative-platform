@@ -1326,28 +1326,28 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
           ) : (
             <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
               {/* Table Subheader Bar */}
-              <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-800">
-                    Client Bookings & Shoots
-                  </span>
-                  <span className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
-                    Showing {filteredBookings.length} of {bookings.length}
-                  </span>
-                </div>
+              <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <span className="text-xs font-bold text-slate-800">
+                  Client Bookings & Shoots
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Showing {filteredBookings.length} of {bookings.length} projects
+                </span>
               </div>
 
-              {/* Table */}
+              {/* Minimal Clean Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/90 border-b border-slate-200 text-[10px] sm:text-[11px] uppercase tracking-wider text-slate-500 font-bold">
-                      <th className="py-3.5 px-4">Project & Role</th>
-                      <th className="py-3.5 px-4">Client Details</th>
-                      <th className="py-3.5 px-4">Shoot Dates</th>
-                      <th className="py-3.5 px-4">Budget & Payments</th>
-                      <th className="py-3.5 px-4">Production Status</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400 font-semibold bg-slate-50/40">
+                      <th className="py-3.5 px-4 font-semibold">Project</th>
+                      <th className="py-3.5 px-4 font-semibold">Type</th>
+                      <th className="py-3.5 px-4 font-semibold">Role</th>
+                      <th className="py-3.5 px-4 font-semibold">Client</th>
+                      <th className="py-3.5 px-4 font-semibold">Shoot Dates</th>
+                      <th className="py-3.5 px-4 font-semibold">Financials</th>
+                      <th className="py-3.5 px-4 font-semibold">Status</th>
+                      <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -1357,154 +1357,133 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                       const bPaid = Number(b.paid_amount || 0);
                       const bBalance = Math.max(0, bTotal - bPaid);
                       const hasPendingBalance = bBalance > 0 && (b.status === 'completed' || b.status === 'deliverables_submitted' || b.status === 'confirmed');
-                      const isRecentlyReminded = Boolean(b.last_balance_reminder_at || reminderStatusMap[b.id]?.sent);
 
                       return (
                         <React.Fragment key={b.id}>
-                          <tr className={`transition-colors ${isExpanded ? 'bg-blue-50/30' : 'hover:bg-slate-50/70'}`}>
-                            {/* 1. Project & Role */}
-                            <td className="py-4 px-4 align-top">
-                              <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                                {b.crew_bundle_id ? (
-                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-purple-100 text-purple-900 px-2 py-0.5 rounded-full border border-purple-200">
-                                    Crew Production
-                                  </span>
-                                ) : (
-                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-blue-50 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200">
-                                    Direct Booking
-                                  </span>
-                                )}
-                                <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                                  {b.crew_role || b.category_name || 'Creator'}
-                                </span>
-                              </div>
-
-                              <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                          <tr className={`transition-colors ${isExpanded ? 'bg-slate-50/70' : 'hover:bg-slate-50/40'}`}>
+                            {/* 1. Project */}
+                            <td className="py-3.5 px-4 align-middle">
+                              <div className="font-semibold text-slate-900 text-xs sm:text-sm">
                                 {b.project_name || b.resource_title || 'Commercial Production Shoot'}
                               </div>
-
-                              <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400">
+                              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
                                 <span className="font-mono">#{b.id.slice(0, 8)}</span>
                                 <span>&bull;</span>
-                                <span>Received {new Date(b.created_at).toLocaleDateString()}</span>
+                                <span>{new Date(b.created_at).toLocaleDateString()}</span>
                               </div>
-
                               {b.crew_bundle_id && (
                                 <button
                                   type="button"
                                   onClick={() => setExpandedBookingId(isExpanded ? null : b.id)}
-                                  className="mt-1.5 text-[11px] text-purple-700 hover:text-purple-900 font-semibold flex items-center gap-1 cursor-pointer"
+                                  className="mt-1 text-[11px] text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 cursor-pointer"
                                 >
-                                  <span>{isExpanded ? 'Hide multi-talent info' : 'View multi-talent info'}</span>
+                                  <span>{isExpanded ? 'Hide crew details' : 'Crew bundle details'}</span>
                                   <ChevronDown className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                                 </button>
                               )}
                             </td>
 
-                            {/* 2. Client Details */}
-                            <td className="py-4 px-4 align-top">
-                              <div className="font-bold text-slate-900">
+                            {/* 2. Type */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <span className="text-xs text-slate-700 font-medium">
+                                {b.crew_bundle_id ? 'Crew Production' : 'Direct Booking'}
+                              </span>
+                            </td>
+
+                            {/* 3. Your Role */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <span className="text-xs text-slate-800 font-medium">
+                                {b.crew_role || b.category_name || 'Creator'}
+                              </span>
+                            </td>
+
+                            {/* 4. Client */}
+                            <td className="py-3.5 px-4 align-middle">
+                              <div className="text-xs font-semibold text-slate-900">
                                 {b.customer_name || 'Creative Client'}
                               </div>
-                              {b.customer_mobile && (
-                                <div className="text-slate-500 text-[11px] mt-0.5 flex items-center gap-1 font-mono">
-                                  <span>{b.customer_mobile}</span>
-                                </div>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => onOpenChat?.({ bookingId: b.id, customerId: b.customer_id })}
-                                className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
-                              >
-                                <MessageSquare className="w-3 h-3" />
-                                <span>Chat</span>
-                              </button>
+                              <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                {b.customer_mobile || '—'}
+                              </div>
                             </td>
 
-                            {/* 3. Shoot Dates */}
-                            <td className="py-4 px-4 align-top whitespace-nowrap">
-                              <div className="font-medium text-slate-800">
+                            {/* 5. Shoot Dates */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="text-xs font-medium text-slate-800">
                                 {new Date(b.start_date).toLocaleDateString()} &rarr; {new Date(b.end_date).toLocaleDateString()}
                               </div>
-                              {b.duration && (
-                                <span className="text-[10px] text-slate-500 block mt-0.5">
-                                  Duration: {b.duration}
-                                </span>
-                              )}
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                {b.duration || '1 Day'}
+                              </div>
                             </td>
 
-                            {/* 4. Budget & Financials */}
-                            <td className="py-4 px-4 align-top">
-                              <div className="font-bold text-slate-900 font-mono text-sm">
+                            {/* 6. Financials (Clean text without colored background boxes) */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="font-semibold text-slate-900 font-mono text-xs">
                                 ₹{bTotal.toLocaleString()}
                               </div>
-                              <div className="mt-1">
+                              <div className="text-[11px] text-slate-500 mt-0.5">
                                 {b.payment_status === 'paid' || bBalance <= 0 ? (
-                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 inline-block">
-                                    ✓ Full Paid
-                                  </span>
+                                  <span className="text-emerald-600 font-medium">Fully Paid</span>
                                 ) : b.payment_status === 'advance_paid' || bPaid > 0 ? (
-                                  <div className="space-y-0.5">
-                                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 inline-block">
-                                      Adv: ₹{bPaid.toLocaleString()}
-                                    </span>
-                                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-300 block">
-                                      Due: ₹{bBalance.toLocaleString()}
-                                    </span>
-                                  </div>
+                                  <span>₹{bPaid.toLocaleString()} paid &bull; ₹{bBalance.toLocaleString()} due</span>
                                 ) : (
-                                  <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-block">
-                                    Adv Req: ₹{Number(b.advance_amount || Math.round(bTotal * 0.3)).toLocaleString()}
-                                  </span>
+                                  <span>₹{Number(b.advance_amount || Math.round(bTotal * 0.3)).toLocaleString()} advance req.</span>
                                 )}
                               </div>
                             </td>
 
-                            {/* 5. Production Status */}
-                            <td className="py-4 px-4 align-top">
-                              <span
-                                className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded border inline-block whitespace-nowrap ${
-                                  b.status === 'confirmed'
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : b.status === 'deliverables_submitted'
-                                    ? 'bg-purple-50 text-purple-700 border-purple-200 font-bold'
-                                    : b.status === 'completed'
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                    : b.status === 'rejected' || b.status === 'cancelled'
-                                    ? 'bg-rose-50 text-rose-700 border-rose-200 font-black'
-                                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                                }`}
-                              >
-                                {b.status === 'deliverables_submitted'
-                                  ? 'Deliverables Submitted'
-                                  : b.status === 'rejected'
-                                  ? 'Declined'
-                                  : b.status.replace('_', ' ')}
-                              </span>
-
-                              {b.status === 'approved' && (
-                                <div className="mt-1 text-[10px] text-amber-800 font-medium">
-                                  Awaiting advance
-                                </div>
+                            {/* 7. Status (Clean minimal indicator dot without colored background box) */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              {b.status === 'confirmed' ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  Confirmed
+                                </span>
+                              ) : b.status === 'deliverables_submitted' ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-600">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                  Deliverables Review
+                                </span>
+                              ) : b.status === 'completed' ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                  Completed
+                                </span>
+                              ) : b.status === 'approved' ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                  Awaiting Advance
+                                </span>
+                              ) : b.status === 'rejected' || b.status === 'cancelled' ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-600">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  Declined
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                  Under Review
+                                </span>
                               )}
 
                               {b.rejection_reason && (
-                                <div className="mt-1 text-[10px] text-rose-700 italic max-w-xs truncate" title={b.rejection_reason}>
+                                <div className="text-[10px] text-rose-500 italic mt-0.5 truncate max-w-[150px]" title={b.rejection_reason}>
                                   "{b.rejection_reason}"
                                 </div>
                               )}
                             </td>
 
-                            {/* 6. Actions */}
-                            <td className="py-4 px-4 align-top text-right">
-                              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                            {/* 8. Actions (Clean, minimal, consistent buttons) */}
+                            <td className="py-3.5 px-4 align-middle text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
                                 {(b.status === 'under_review' || b.status === 'availability_check' || b.status === 'new_request') && (
                                   <>
                                     <button
                                       type="button"
                                       onClick={() => handleUpdateBookingStatus(b.id, 'approved')}
                                       disabled={updatingBookingId === b.id}
-                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-all shadow-xs cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-all cursor-pointer disabled:opacity-50"
                                     >
                                       {updatingBookingId === b.id ? 'Accepting...' : 'Accept'}
                                     </button>
@@ -1512,7 +1491,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                                       type="button"
                                       onClick={() => setDeclineModal({ isOpen: true, booking: b })}
                                       disabled={updatingBookingId === b.id}
-                                      className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-lg transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                                      className="px-2.5 py-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 text-xs font-medium rounded-lg transition-all cursor-pointer disabled:opacity-50"
                                     >
                                       Decline
                                     </button>
@@ -1524,8 +1503,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                                     type="button"
                                     onClick={() => handleUpdateBookingStatus(b.id, 'confirmed')}
                                     disabled={updatingBookingId === b.id}
-                                    title="Manually confirm if advance was paid directly/offline"
-                                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-lg border border-slate-200 transition-all cursor-pointer whitespace-nowrap"
+                                    className="px-2.5 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-slate-200 text-xs font-medium rounded-lg transition-all cursor-pointer"
                                   >
                                     Confirm Offline
                                   </button>
@@ -1535,15 +1513,9 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                                   <button
                                     type="button"
                                     onClick={() => setDeliverablesModalBooking(b)}
-                                    className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center gap-1 shadow-2xs whitespace-nowrap ${
-                                      b.status === 'deliverables_submitted'
-                                        ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300'
-                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent'
-                                    }`}
-                                    title="Manage Project Deliverables & Media Vault"
+                                    className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-all cursor-pointer"
                                   >
-                                    <span>📦</span>
-                                    <span>Vault</span>
+                                    Vault
                                   </button>
                                 )}
 
@@ -1552,7 +1524,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                                     type="button"
                                     onClick={() => handleUpdateBookingStatus(b.id, 'completed')}
                                     disabled={updatingBookingId === b.id}
-                                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all shadow-xs cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-all cursor-pointer disabled:opacity-50"
                                   >
                                     Done
                                   </button>
@@ -1563,24 +1535,28 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                                     type="button"
                                     onClick={() => handleSendBalanceReminder(b)}
                                     disabled={remindingBookingId === b.id}
-                                    className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                                      isRecentlyReminded
-                                        ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
-                                        : 'bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold border-transparent'
-                                    }`}
-                                    title={`Send balance reminder for ₹${bBalance.toLocaleString()}`}
+                                    className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-lg transition-all cursor-pointer"
+                                    title={`Remind balance (₹${bBalance.toLocaleString()})`}
                                   >
-                                    <span>🔔</span>
-                                    <span>Remind</span>
+                                    Remind
                                   </button>
                                 )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenChat?.({ bookingId: b.id, customerId: b.customer_id })}
+                                  className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-50 border border-slate-200 rounded-lg transition-all cursor-pointer"
+                                  title="Chat with Client"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                </button>
 
                                 {Number(b.paid_amount || 0) > 0 && (
                                   <button
                                     type="button"
                                     onClick={() => setReceiptModalBooking(b)}
-                                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap"
-                                    title="View client payment slip and escrow status"
+                                    className="px-2 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200 text-xs font-medium rounded-lg transition-all cursor-pointer"
+                                    title="Payment Slip"
                                   >
                                     Slip
                                   </button>
@@ -1591,26 +1567,13 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
 
                           {/* Expandable Multi-Talent Breakdown Row */}
                           {isExpanded && b.crew_bundle_id && (
-                            <tr className="bg-purple-50/40 border-b border-purple-100">
-                              <td colSpan={6} className="p-4">
-                                <div className="p-3 bg-white border border-purple-200 rounded-xl text-xs space-y-2">
-                                  <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-bold text-purple-900">
-                                        Multi-Talent Project: {b.crew_bundle_name || b.project_name || 'Production Crew'}
-                                      </span>
-                                      <span className="text-purple-400">&bull;</span>
-                                      <span className="text-purple-800">
-                                        Your Assigned Role: <strong className="text-purple-950">{b.crew_role || b.category_name}</strong>
-                                      </span>
-                                    </div>
-                                    <span className="text-[10px] font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-                                      Bundle #{b.crew_bundle_id}
-                                    </span>
+                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                              <td colSpan={8} className="px-5 py-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                                  <div>
+                                    <span className="font-semibold text-slate-800">Multi-Talent Project:</span> {b.crew_bundle_name || b.project_name || 'Production Crew'} &bull; <span className="font-semibold text-slate-800">Assigned Role:</span> {b.crew_role || b.category_name}
                                   </div>
-                                  <p className="text-[11px] text-slate-500">
-                                    This project is part of a multi-specialist crew hired simultaneously by {b.customer_name || 'the client'}. Each crew specialist manages their individual deliverables and payouts.
-                                  </p>
+                                  <span className="font-mono text-[11px] text-slate-400">Bundle #{b.crew_bundle_id}</span>
                                 </div>
                               </td>
                             </tr>
