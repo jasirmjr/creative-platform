@@ -1229,16 +1229,16 @@ export default function CustomerDashboard({
         <div className="space-y-6">
           {/* Real-time Studio Balance Payment Reminder Alert */}
           {balanceReminderAlert && (
-            <div className="p-4 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fadeIn">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🔔</span>
+            <div className="px-4 py-3 bg-amber-50/70 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fadeIn">
+              <div className="flex items-center gap-2.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
                 <div>
-                  <h4 className="font-bold text-amber-950 text-sm">
-                    Balance Payment Requested by {balanceReminderAlert.vendor_name || 'Creative Studio'}
-                  </h4>
-                  <p className="text-amber-800 mt-0.5">
-                    {balanceReminderAlert.message || `Production is completed. Please settle the remaining balance of ₹${Number(balanceReminderAlert.balance_due || 0).toLocaleString()} to release final escrow.`}
-                  </p>
+                  <span className="font-semibold text-amber-950">
+                    Balance Payment Requested: {balanceReminderAlert.vendor_name || 'Creative Studio'}
+                  </span>
+                  <span className="text-amber-800 ml-2">
+                    Pending balance of ₹{Number(balanceReminderAlert.balance_due || 0).toLocaleString()} requested for completion.
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
@@ -1251,53 +1251,21 @@ export default function CustomerDashboard({
                       setPaymentModalType('balance');
                     }
                   }}
-                  className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs rounded-lg transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  Settle Balance (₹{Number(balanceReminderAlert.balance_due || 0).toLocaleString()}) &rarr;
+                  Settle Balance &rarr;
                 </button>
                 <button
                   type="button"
                   onClick={() => setBalanceReminderAlert(null)}
-                  className="w-8 h-8 rounded-xl bg-white/70 hover:bg-white text-slate-500 hover:text-slate-800 font-bold flex items-center justify-center border border-amber-200 cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Dismiss"
                 >
                   ✕
                 </button>
               </div>
             </div>
           )}
-
-          {/* Status Filter Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {[
-              { id: 'all', label: 'All Projects', count: groupedProjects.length },
-              { id: 'review', label: 'Under Review', count: underReviewCount },
-              { id: 'payment', label: 'Payment Pending', count: paymentPendingCount },
-              { id: 'confirmed', label: 'Confirmed Shoots', count: confirmedCount },
-              { id: 'completed', label: 'Completed', count: completedCount },
-              { id: 'declined', label: 'Declined', count: rejectedCount },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveFilter(tab.id)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                  activeFilter === tab.id
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>{tab.label}</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                    activeFilter === tab.id
-                      ? 'bg-blue-700 text-white'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              </button>
-            ))}
-          </div>
 
           {loadingBookings ? (
             <div className="py-16 text-center text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl">
@@ -1319,37 +1287,50 @@ export default function CustomerDashboard({
           ) : (
             <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
               {/* Table Sub-Header Controls */}
-              <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
-                <div className="flex items-center gap-2">
+              <div className="px-5 py-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+                <div className="flex items-center gap-3">
                   <span className="text-xs font-bold text-slate-800">
                     Project Bookings
                   </span>
-                  <span className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
-                    Showing {filteredProjects.length} of {groupedProjects.length}
-                  </span>
+                  <div className="relative">
+                    <select
+                      value={activeFilter}
+                      onChange={(e) => setActiveFilter(e.target.value)}
+                      className="appearance-none bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold rounded-xl pl-3 pr-8 py-1.5 shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all"
+                    >
+                      <option value="all">All Projects ({groupedProjects.length})</option>
+                      <option value="review">Under Review ({underReviewCount})</option>
+                      <option value="payment">Payment Pending ({paymentPendingCount})</option>
+                      <option value="confirmed">Confirmed ({confirmedCount})</option>
+                      <option value="completed">Completed ({completedCount})</option>
+                      <option value="declined">Declined ({rejectedCount})</option>
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
-                <div className="w-full sm:w-72">
+
+                <div className="w-full sm:w-64">
                   <input
                     type="text"
-                    placeholder="Search project, studio, location..."
+                    placeholder="Search project, studio..."
                     value={projectSearch}
                     onChange={(e) => setProjectSearch(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 transition-all"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all"
                   />
                 </div>
               </div>
 
               {/* Bookings Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left border-collapse table-auto">
                   <thead>
-                    <tr className="bg-slate-50/90 border-b border-slate-200 text-[10px] sm:text-[11px] uppercase tracking-wider text-slate-500 font-bold">
-                      <th className="py-3.5 px-4">Project & Service</th>
-                      <th className="py-3.5 px-4">Creative Partner</th>
-                      <th className="py-3.5 px-4">Shoot Dates</th>
-                      <th className="py-3.5 px-4">Budget & Payments</th>
-                      <th className="py-3.5 px-4">Workflow Status</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400 font-semibold bg-slate-50/40">
+                      <th className="py-3 px-4 font-semibold w-[26%] min-w-[180px]">Project</th>
+                      <th className="py-3 px-4 font-semibold w-[18%] min-w-[140px]">Creative Partner</th>
+                      <th className="py-3 px-4 font-semibold w-[16%] min-w-[120px]">Shoot Dates</th>
+                      <th className="py-3 px-4 font-semibold w-[15%] min-w-[120px]">Amount</th>
+                      <th className="py-3 px-4 font-semibold w-[13%] min-w-[110px]">Status</th>
+                      <th className="py-3 px-4 font-semibold text-right w-[12%] min-w-[120px]">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -1358,77 +1339,57 @@ export default function CustomerDashboard({
                         const isExpanded = expandedBookingId === item.bundleId;
                         return (
                           <React.Fragment key={item.bundleId}>
-                            <tr className={`transition-colors border-l-4 ${item.hasDeclined ? 'border-l-rose-500 bg-rose-50/15' : 'border-l-blue-500'} ${isExpanded ? 'bg-blue-50/30' : 'hover:bg-slate-50/70'}`}>
-                              {/* Project & Service */}
-                              <td className="py-4 px-4 align-top">
-                                <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-blue-100 text-blue-900 px-2.5 py-0.5 rounded-full border border-blue-200">
-                                    Crew Production
-                                  </span>
-                                  <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                                    {item.members.length} Specialists
-                                  </span>
-                                  {item.hasDeclined && (
-                                    <span className="text-[9px] font-bold text-rose-700 bg-rose-100/80 px-2 py-0.5 rounded-md border border-rose-200">
-                                      Action Required
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                            <tr className={`transition-colors ${isExpanded ? 'bg-slate-50/70' : 'hover:bg-slate-50/40'}`}>
+                              {/* 1. Project & Service */}
+                              <td className="py-3.5 px-4 align-middle">
+                                <div className="font-semibold text-slate-900 text-xs sm:text-sm">
                                   {item.bundleName}
                                 </div>
-                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                  <span className="text-[10px] text-slate-400 font-mono">
-                                    #{item.bundleId.slice(0, 12)}
-                                  </span>
-                                  <span className="text-slate-300">&bull;</span>
-                                  <span className="text-[10px] text-slate-500">
-                                    {item.projectLocation}
-                                  </span>
+                                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                                  <span>Crew ({item.members.length} Specialists)</span>
+                                  <span>&bull;</span>
+                                  <span className="font-mono">#{item.bundleId.slice(0, 8)}</span>
+                                  {item.projectLocation && (
+                                    <>
+                                      <span>&bull;</span>
+                                      <span>{item.projectLocation}</span>
+                                    </>
+                                  )}
                                 </div>
+                                {item.hasDeclined && (
+                                  <div className="text-[11px] text-rose-600 font-medium mt-1">
+                                    Action required: Partner declined
+                                  </div>
+                                )}
                               </td>
 
-                              {/* Creative Partner Roster Preview */}
-                              <td className="py-4 px-4 align-top">
-                                <div className="space-y-1.5">
+                              {/* 2. Creative Partner */}
+                              <td className="py-3.5 px-4 align-middle">
+                                <div className="space-y-1 text-xs">
                                   {item.members.map((m) => {
                                     const isDeclined = m.status === 'rejected' || m.status === 'cancelled';
                                     const isApproved = m.status === 'approved' || m.status === 'payment_pending';
                                     const isConfirmed = m.status === 'confirmed' || m.status === 'in_progress';
                                     return (
                                       <div key={m.id} className="flex items-center gap-1.5 text-[11px]">
-                                        <span className="font-semibold text-slate-700">
-                                          {m.crew_role || m.category_name || 'Specialist'}:
-                                        </span>
-                                        <span className="text-slate-800 font-medium truncate max-w-[120px]" title={m.business_name || m.provider_name}>
+                                        <span className="text-slate-500">{m.crew_role || m.category_name || 'Specialist'}:</span>
+                                        <span className="font-medium text-slate-900 truncate max-w-[120px]" title={m.business_name || m.provider_name}>
                                           {m.business_name || m.provider_name || 'Studio'}
                                         </span>
-                                        {isDeclined ? (
-                                          <span className="text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded whitespace-nowrap">
-                                            Declined
-                                          </span>
-                                        ) : isConfirmed ? (
-                                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded whitespace-nowrap">
-                                            Locked
-                                          </span>
-                                        ) : isApproved ? (
-                                          <span className="text-[9px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.2 rounded whitespace-nowrap">
-                                            Approved
-                                          </span>
-                                        ) : (
-                                          <span className="text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded whitespace-nowrap">
-                                            Review
-                                          </span>
-                                        )}
+                                        <span className={`text-[10px] font-medium ${
+                                          isDeclined ? 'text-rose-600' : isConfirmed ? 'text-emerald-600' : isApproved ? 'text-blue-600' : 'text-amber-600'
+                                        }`}>
+                                          ({isDeclined ? 'Declined' : isConfirmed ? 'Locked' : isApproved ? 'Approved' : 'Review'})
+                                        </span>
                                       </div>
                                     );
                                   })}
                                 </div>
                               </td>
 
-                              {/* Dates & Duration */}
-                              <td className="py-4 px-4 align-top">
-                                <div className="text-xs font-semibold text-slate-800">
+                              {/* 3. Shoot Dates */}
+                              <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                                <div className="text-xs font-medium text-slate-800">
                                   {item.startDate && item.endDate ? (
                                     <span>
                                       {new Date(item.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
@@ -1436,148 +1397,137 @@ export default function CustomerDashboard({
                                       {new Date(item.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                                     </span>
                                   ) : (
-                                    'Dates Synchronized'
+                                    'Synchronized'
                                   )}
                                 </div>
-                                <div className="mt-1">
-                                  <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-                                    {item.duration || 'Multi-day Shoot'}
-                                  </span>
+                                <div className="text-[11px] text-slate-400 mt-0.5">
+                                  {item.duration || 'Multi-day Shoot'}
                                 </div>
                               </td>
 
-                              {/* Budget & Payments */}
-                              <td className="py-4 px-4 align-top">
-                                <div className="font-bold font-mono text-sm text-slate-900">
+                              {/* 4. Budget & Payments */}
+                              <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                                <div className="font-semibold text-slate-900 font-mono text-xs">
                                   ₹{item.totalAmount.toLocaleString()}
                                 </div>
-                                {item.paidAmount >= item.totalAmount && item.totalAmount > 0 ? (
-                                  <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 mt-1">
-                                    ✓ Fully Paid
-                                  </span>
-                                ) : item.paidAmount > 0 ? (
-                                  <div className="mt-1 space-y-0.5">
-                                    <span className="inline-block text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                                      ✓ Paid: ₹{item.paidAmount.toLocaleString()}
-                                    </span>
-                                    <div className="text-[10px] text-slate-500">
-                                      Due: <strong className="font-mono text-slate-700">₹{(item.totalAmount - item.paidAmount).toLocaleString()}</strong>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="mt-1 space-y-0.5">
-                                    <span className="inline-block text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                      Combined Advance
-                                    </span>
-                                    <div className="text-[10px] text-slate-500">
-                                      30%: <strong className="font-mono text-slate-700">₹{item.advanceAmount.toLocaleString()}</strong>
-                                    </div>
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Workflow Status */}
-                              <td className="py-4 px-4 align-top">
-                                <div>
-                                  {item.hasDeclined ? (
-                                    <div>
-                                      <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200 inline-block">
-                                        Step 2/6: Role Declined ({item.declinedMembers.length})
-                                      </span>
-                                      <span className="text-[10px] text-rose-800 font-medium block mt-1">
-                                        Re-arrange partner below
-                                      </span>
-                                    </div>
-                                  ) : item.allConfirmed ? (
-                                    <div>
-                                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 inline-block">
-                                        Step 4/6: Confirmed &amp; Locked
-                                      </span>
-                                      <span className="text-[10px] text-slate-500 block mt-1">
-                                        All partners confirmed
-                                      </span>
-                                    </div>
-                                  ) : item.allCompleted ? (
-                                    <div>
-                                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 inline-block">
-                                        Step 6/6: Production Completed
-                                      </span>
-                                    </div>
-                                  ) : item.isReadyForCrewAdvance ? (
-                                    <div>
-                                      <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200 inline-block animate-pulse">
-                                        Step 3/6: Terms Approved
-                                      </span>
-                                      <span className="text-[10px] text-slate-500 block mt-1">
-                                        Awaiting advance deposit
-                                      </span>
-                                    </div>
+                                <div className="text-[11px] mt-1 space-y-0.5">
+                                  {item.paidAmount >= item.totalAmount && item.totalAmount > 0 ? (
+                                    <div className="text-emerald-600 font-medium">Fully Paid</div>
+                                  ) : item.paidAmount > 0 ? (
+                                    <>
+                                      <div className="text-slate-500">Paid: <span className="font-mono text-slate-700 font-medium">₹{item.paidAmount.toLocaleString()}</span></div>
+                                      <div className="text-slate-500">Due: <span className="font-mono font-medium text-amber-600">₹{(item.totalAmount - item.paidAmount).toLocaleString()}</span></div>
+                                    </>
                                   ) : (
-                                    <div>
-                                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 inline-block">
-                                        Step 2/6: In Review
-                                      </span>
-                                      <span className="text-[10px] text-slate-500 block mt-1">
-                                        {item.hasUnderReview ? `${item.underReviewMembers.length} partner(s) reviewing shoot` : 'Partners reviewing shoot'}
-                                      </span>
-                                    </div>
+                                    <>
+                                      <div className="text-slate-500">Adv: <span className="font-mono text-slate-700 font-medium">₹{item.advanceAmount.toLocaleString()}</span></div>
+                                      <div className="text-amber-600 font-medium">Advance Due</div>
+                                    </>
                                   )}
                                 </div>
                               </td>
 
-                              {/* Actions */}
-                              <td className="py-4 px-4 align-top text-right">
-                                <div className="flex flex-col items-end gap-1.5">
-                                  {/* If any role is declined, show immediate 1-click Re-arrange Role button */}
+                              {/* 5. Workflow Status */}
+                              <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                      item.hasDeclined
+                                        ? 'bg-rose-500'
+                                        : item.allConfirmed
+                                        ? 'bg-emerald-500'
+                                        : item.allCompleted
+                                        ? 'bg-blue-500'
+                                        : item.isReadyForCrewAdvance
+                                        ? 'bg-purple-500'
+                                        : 'bg-amber-500'
+                                    }`}
+                                  />
+                                  <span
+                                    className={`text-xs font-medium ${
+                                      item.hasDeclined
+                                        ? 'text-rose-700'
+                                        : item.allConfirmed
+                                        ? 'text-emerald-700'
+                                        : item.allCompleted
+                                        ? 'text-blue-700'
+                                        : item.isReadyForCrewAdvance
+                                        ? 'text-purple-700'
+                                        : 'text-amber-700'
+                                    }`}
+                                  >
+                                    {item.hasDeclined
+                                      ? 'Role Declined'
+                                      : item.allConfirmed
+                                      ? 'Confirmed & Locked'
+                                      : item.allCompleted
+                                      ? 'Completed'
+                                      : item.isReadyForCrewAdvance
+                                      ? 'Advance Due'
+                                      : 'In Review'}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5">
+                                  {item.hasDeclined
+                                    ? 'Re-arrange role'
+                                    : item.allConfirmed
+                                    ? 'All confirmed'
+                                    : item.allCompleted
+                                    ? 'Production done'
+                                    : item.isReadyForCrewAdvance
+                                    ? 'Terms approved'
+                                    : item.hasUnderReview
+                                    ? `${item.underReviewMembers.length} reviewing`
+                                    : 'Reviewing'}
+                                </div>
+                              </td>
+
+                              {/* 6. Actions */}
+                              <td className="py-3.5 px-4 align-middle text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1.5">
                                   {item.hasDeclined && item.declinedMembers.length > 0 && (
                                     <button
                                       onClick={() => setReplacementModalBooking(item.declinedMembers[0])}
-                                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer whitespace-nowrap transition-all flex items-center gap-1"
+                                      className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap"
                                     >
-                                      <span>Re-arrange Declined Role ↗</span>
+                                      Re-arrange
                                     </button>
                                   )}
 
-                                  {/* If under review, show awaiting notice instead of pay button */}
                                   {!item.hasDeclined && item.hasUnderReview && (
-                                    <span className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl inline-block">
-                                      Awaiting Vendor Review
+                                    <span className="text-[11px] font-medium text-amber-700">
+                                      Awaiting Review
                                     </span>
                                   )}
 
-                                  {/* Combined Advance Payment - Strictly unlocked only in Step 3 after all partners approve */}
                                   {!item.hasDeclined && item.isReadyForCrewAdvance && item.payableAdvanceAmount > 0 && (
                                     <button
                                       onClick={() => handleCrewBundlePayment(item.bundleId, 'advance')}
                                       disabled={payingId === item.bundleId}
-                                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer whitespace-nowrap transition-all disabled:opacity-50"
+                                      className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap disabled:opacity-50"
                                     >
-                                      {payingId === item.bundleId ? 'Processing...' : `Pay Crew Advance (₹${item.payableAdvanceAmount.toLocaleString()})`}
+                                      {payingId === item.bundleId ? 'Paying...' : `Pay Adv. (₹${item.payableAdvanceAmount.toLocaleString()})`}
                                     </button>
                                   )}
 
-                                  {/* Combined Balance Settlement */}
                                   {item.allConfirmed && item.payableBalanceAmount > 0 && (
                                     <button
                                       onClick={() => handleCrewBundlePayment(item.bundleId, 'balance')}
                                       disabled={payingId === item.bundleId}
-                                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer whitespace-nowrap transition-all disabled:opacity-50"
+                                      className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap disabled:opacity-50"
                                     >
-                                      {payingId === item.bundleId ? 'Processing...' : `Settle Crew Balance (₹${item.payableBalanceAmount.toLocaleString()})`}
+                                      {payingId === item.bundleId ? 'Processing...' : `Settle (₹${item.payableBalanceAmount.toLocaleString()})`}
                                     </button>
                                   )}
 
-                                  <div className="flex flex-wrap items-center justify-end gap-1.5 mt-0.5">
-                                    {/* Expand Crew Roster Toggle */}
-                                    <button
-                                      type="button"
-                                      onClick={() => setExpandedBookingId(isExpanded ? null : item.bundleId)}
-                                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                                    >
-                                      <span>{isExpanded ? 'Hide Roster' : `Crew Roster (${item.members.length})`}</span>
-                                      <span>{isExpanded ? '▲' : '▼'}</span>
-                                    </button>
-                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedBookingId(isExpanded ? null : item.bundleId)}
+                                    className="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200 text-xs font-medium rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                                  >
+                                    <span>Roster ({item.members.length})</span>
+                                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -1859,168 +1809,122 @@ export default function CustomerDashboard({
 
                       return (
                         <React.Fragment key={b.id}>
-                          <tr className={`transition-colors ${isExpanded ? 'bg-blue-50/30' : 'hover:bg-slate-50/70'}`}>
-                            {/* Project & Service */}
-                            <td className="py-4 px-4 align-top">
-                              {b.crew_bundle_id && (
-                                <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200">
-                                    Crew Production
-                                  </span>
-                                  {b.crew_role && (
-                                    <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                                      Role: {b.crew_role}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                          <tr className={`transition-colors ${isExpanded ? 'bg-slate-50/70' : 'hover:bg-slate-50/40'}`}>
+                            {/* 1. Project */}
+                            <td className="py-3.5 px-4 align-middle">
+                              <div className="font-semibold text-slate-900 text-xs sm:text-sm">
                                 {b.project_name || b.resource_title}
                               </div>
-                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-semibold">
-                                  {b.category_name || 'Creative Service'}
-                                </span>
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  #{b.id.slice(0, 8)}
-                                </span>
+                              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                                <span>{b.category_name || 'Creative Service'}</span>
+                                <span>&bull;</span>
+                                <span className="font-mono">#{b.id.slice(0, 8)}</span>
                               </div>
                             </td>
 
-                            {/* Creative Partner */}
-                            <td className="py-4 px-4 align-top">
-                              <div className="font-semibold text-slate-800 text-xs">
+                            {/* 2. Creative Partner */}
+                            <td className="py-3.5 px-4 align-middle">
+                              <div className="text-xs font-semibold text-slate-900">
                                 {b.business_name || b.provider_name || 'Creative Studio'}
                               </div>
-                              <div className="text-[11px] text-slate-500 mt-0.5">
-                                <span>{b.vendor_location || b.project_location || 'India'}</span>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                {b.vendor_location || b.project_location || 'India'}
                               </div>
-                              {b.provider_name && (
-                                <div className="text-[10px] text-slate-400 mt-0.5">
-                                  Lead: {b.provider_name}
-                                </div>
-                              )}
                             </td>
 
-                            {/* Dates & Duration */}
-                            <td className="py-4 px-4 align-top">
-                              <div className="text-xs font-semibold text-slate-800">
+                            {/* 3. Shoot Dates */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="text-xs font-medium text-slate-800">
                                 <span>
                                   {new Date(b.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                                   {' → '}
                                   {new Date(b.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                                 </span>
                               </div>
-                              <div className="mt-1">
-                                <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-                                  {b.duration || '1 Day'}
-                                </span>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                {b.duration || '1 Day'}
                               </div>
                             </td>
 
-                            {/* Budget & Payments */}
-                            <td className="py-4 px-4 align-top">
-                              <div className="font-bold font-mono text-sm text-slate-900">
-                                ₹{Number(b.total_amount).toLocaleString()}
+                            {/* 4. Amount */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="font-semibold text-slate-900 font-mono text-xs">
+                                ₹{Number(b.total_amount || 0).toLocaleString()}
                               </div>
-                              {b.payment_status === 'paid' ? (
-                                <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 mt-1">
-                                  ✓ Fully Paid
-                                </span>
-                              ) : b.payment_status === 'advance_paid' ? (
-                                <div className="mt-1 space-y-0.5">
-                                  <span className="inline-block text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                                    ✓ Advance (₹{Number(b.paid_amount || 0).toLocaleString()})
-                                  </span>
-                                  <div className="text-[10px] text-slate-500">
-                                    Due: <strong className="font-mono text-slate-700">₹{(Number(b.total_amount) - Number(b.paid_amount || 0)).toLocaleString()}</strong>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="mt-1 space-y-0.5">
-                                  <span className="inline-block text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                    Deposit Due
-                                  </span>
-                                  <div className="text-[10px] text-slate-500">
-                                    30%: <strong className="font-mono text-slate-700">₹{Number(b.advance_amount || Math.round(Number(b.total_amount) * 0.3)).toLocaleString()}</strong>
-                                  </div>
-                                </div>
-                              )}
+                              <div className="text-[11px] mt-1 space-y-0.5">
+                                {b.payment_status === 'paid' || (Number(b.total_amount || 0) - Number(b.paid_amount || 0)) <= 0 ? (
+                                  <div className="text-emerald-600 font-medium">Fully Paid</div>
+                                ) : b.payment_status === 'advance_paid' || Number(b.paid_amount || 0) > 0 ? (
+                                  <>
+                                    <div className="text-slate-500">Paid: <span className="font-mono text-slate-700 font-medium">₹{Number(b.paid_amount || 0).toLocaleString()}</span></div>
+                                    <div className="text-slate-500">Due: <span className="font-mono font-medium text-amber-600">₹{(Number(b.total_amount || 0) - Number(b.paid_amount || 0)).toLocaleString()}</span></div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="text-slate-500">Adv: <span className="font-mono text-slate-700 font-medium">₹{Number(b.advance_amount || Math.round(Number(b.total_amount || 0) * 0.3)).toLocaleString()}</span></div>
+                                    <div className="text-amber-600 font-medium">Deposit Due</div>
+                                  </>
+                                )}
+                              </div>
                             </td>
 
-                            {/* Workflow Status */}
-                            <td className="py-4 px-4 align-top">
-                              <div>
-                                {stage === 1 && (
-                                  <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-                                    Step 1/6: Submitted
-                                  </span>
-                                )}
-                                {stage === 2 && (
-                                  b.status === 'rejected' ? (
-                                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
-                                      Step 2/6: Declined
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                                      Step 2/6: In Review
-                                    </span>
-                                  )
-                                )}
-                                {stage === 3 && (
-                                  <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200 animate-pulse">
-                                    Step 3/6: Terms Approved
-                                  </span>
-                                )}
-                                {stage === 4 && (
-                                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                                    Step 4/6: Payment Verified
-                                  </span>
-                                )}
-                                {stage === 5 && (
-                                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
-                                    Step 5/6: In Progress
-                                  </span>
-                                )}
-                                {stage === 6 && (
-                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                    Step 6/6: Completed
-                                  </span>
-                                )}
-                              </div>
-
-                              <span
-                                className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border inline-block mt-1.5 ${
-                                  b.status === 'confirmed'
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : b.status === 'deliverables_submitted'
-                                    ? 'bg-purple-100 text-purple-900 border-purple-300 animate-pulse font-black'
-                                    : b.status === 'approved' || b.status === 'payment_pending'
-                                    ? 'bg-purple-50 text-purple-700 border-purple-200 font-black'
+                            {/* 5. Status (Minimal clean dot + text) */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    b.status === 'confirmed'
+                                      ? 'bg-emerald-500'
+                                      : b.status === 'completed'
+                                      ? 'bg-blue-500'
+                                      : b.status === 'deliverables_submitted'
+                                      ? 'bg-purple-500'
+                                      : b.status === 'approved' || b.status === 'payment_pending'
+                                      ? 'bg-amber-500'
+                                      : b.status === 'rejected' || b.status === 'cancelled'
+                                      ? 'bg-rose-500'
+                                      : 'bg-amber-500'
+                                  }`}
+                                />
+                                <span
+                                  className={`text-xs font-medium ${
+                                    b.status === 'confirmed'
+                                      ? 'text-emerald-700'
+                                      : b.status === 'completed'
+                                      ? 'text-blue-700'
+                                      : b.status === 'deliverables_submitted'
+                                      ? 'text-purple-700'
+                                      : b.status === 'approved' || b.status === 'payment_pending'
+                                      ? 'text-amber-700'
+                                      : b.status === 'rejected' || b.status === 'cancelled'
+                                      ? 'text-rose-600'
+                                      : 'text-amber-700'
+                                  }`}
+                                >
+                                  {b.status === 'confirmed'
+                                    ? 'Confirmed'
                                     : b.status === 'completed'
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    ? 'Completed'
+                                    : b.status === 'deliverables_submitted'
+                                    ? 'Deliverables'
+                                    : b.status === 'approved' || b.status === 'payment_pending'
+                                    ? 'Terms Approved'
                                     : b.status === 'rejected' || b.status === 'cancelled'
-                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                                }`}
-                              >
-                                {b.status === 'deliverables_submitted'
-                                  ? '📦 Deliverables Ready'
-                                  : b.status === 'rejected'
-                                  ? 'Declined'
-                                  : b.status.replace('_', ' ')}
-                              </span>
+                                    ? 'Declined'
+                                    : 'In Review'}
+                                </span>
+                              </div>
                             </td>
 
-                            {/* Actions */}
-                            <td className="py-4 px-4 align-top text-right">
-                              <div className="flex flex-col items-end gap-1.5">
+                            {/* 6. Actions */}
+                            <td className="py-3.5 px-4 align-middle text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
                                 {b.status === 'rejected' && (
                                   <button
                                     onClick={() => setReplacementModalBooking(b)}
-                                    className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer whitespace-nowrap transition-all flex items-center gap-1"
+                                    className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap"
                                   >
-                                    <span>Find Replacement ↗</span>
+                                    Replace
                                   </button>
                                 )}
 
@@ -2030,153 +1934,61 @@ export default function CustomerDashboard({
                                       setPaymentModalBooking(b);
                                       setPaymentModalType('advance');
                                     }}
-                                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer whitespace-nowrap transition-all"
+                                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap"
                                   >
-                                    <span>Pay Advance (₹{Number(b.advance_amount || Math.round(Number(b.total_amount) * 0.3)).toLocaleString()})</span>
+                                    Pay Adv. (₹{Number(b.advance_amount || Math.round(Number(b.total_amount || 0) * 0.3)).toLocaleString()})
                                   </button>
                                 )}
 
-                                {/* Deliverables & Media Vault */}
                                 {(b.status === 'confirmed' || b.status === 'deliverables_submitted' || b.status === 'completed') && (
-                                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => setDeliverablesModalBooking(b)}
-                                      className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer whitespace-nowrap shadow-xs flex items-center gap-1.5 ${
-                                        b.status === 'deliverables_submitted'
-                                          ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-700 animate-pulse'
-                                          : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200'
-                                      }`}
-                                      title="Open Project Deliverables & Media Vault"
-                                    >
-                                      <span>📦</span>
-                                      <span>{b.status === 'deliverables_submitted' ? 'Review Deliverables' : 'Media Vault'}</span>
-                                    </button>
-                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeliverablesModalBooking(b)}
+                                    className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-all cursor-pointer"
+                                  >
+                                    Vault
+                                  </button>
                                 )}
 
                                 {b.status === 'confirmed' && (
-                                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                                    <button
-                                      onClick={() => handleMarkCompleted(b.id)}
-                                      disabled={updatingStatusId === b.id}
-                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer whitespace-nowrap disabled:opacity-50 transition-all"
-                                    >
-                                      <span>{updatingStatusId === b.id ? 'Completing...' : 'Mark Completed'}</span>
-                                    </button>
-                                    {Number(b.paid_amount || 0) < Number(b.total_amount) && (
-                                      <button
-                                        onClick={() => {
-                                          setPaymentModalBooking(b);
-                                          setPaymentModalType('balance');
-                                        }}
-                                        className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold rounded-xl cursor-pointer whitespace-nowrap transition-colors"
-                                      >
-                                        <span>Settle (₹{(Number(b.total_amount) - Number(b.paid_amount || 0)).toLocaleString()})</span>
-                                      </button>
-                                    )}
-                                  </div>
+                                  <button
+                                    onClick={() => handleMarkCompleted(b.id)}
+                                    disabled={updatingStatusId === b.id}
+                                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-all cursor-pointer whitespace-nowrap disabled:opacity-50"
+                                  >
+                                    {updatingStatusId === b.id ? 'Completing...' : 'Completed'}
+                                  </button>
+                                )}
+
+                                {b.status === 'completed' && (Number(b.total_amount || 0) - Number(b.paid_amount || 0)) > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      setPaymentModalBooking(b);
+                                      setPaymentModalType('balance');
+                                    }}
+                                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition-all cursor-pointer whitespace-nowrap"
+                                  >
+                                    Settle (₹{(Number(b.total_amount || 0) - Number(b.paid_amount || 0)).toLocaleString()})
+                                  </button>
                                 )}
 
                                 {b.status === 'completed' && (
-                                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                                    {Number(b.paid_amount || 0) < Number(b.total_amount) && (
-                                      <button
-                                        onClick={() => {
-                                          setPaymentModalBooking(b);
-                                          setPaymentModalType('balance');
-                                        }}
-                                        className={`px-3 py-1.5 text-white text-xs font-semibold rounded-xl cursor-pointer whitespace-nowrap transition-all shadow-xs flex items-center gap-1.5 ${
-                                          b.last_balance_reminder_at
-                                            ? 'bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 animate-pulse font-bold'
-                                            : 'bg-blue-600 hover:bg-blue-700'
-                                        }`}
-                                      >
-                                        {b.last_balance_reminder_at && <span>🔔</span>}
-                                        <span>Settle Balance (₹{(Number(b.total_amount) - Number(b.paid_amount || 0)).toLocaleString()})</span>
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => setSelectedReviewBooking(b)}
-                                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-xl shadow-xs cursor-pointer whitespace-nowrap transition-all"
-                                    >
-                                      <span>{existingReview ? 'Update Review' : 'Add Review'}</span>
-                                    </button>
-                                  </div>
+                                  <button
+                                    onClick={() => setSelectedReviewBooking(b)}
+                                    className="px-2 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-slate-200 text-xs font-medium rounded-lg transition-all cursor-pointer"
+                                  >
+                                    {existingReview ? 'Reviewed' : 'Review'}
+                                  </button>
                                 )}
 
-                                <div className="flex flex-wrap items-center justify-end gap-1.5 mt-0.5">
-                                  {/* Dispute / Complaint Trigger */}
-                                  {(() => {
-                                    const activeComp = customerComplaints.find((c) => c.booking_id === b.id);
-                                    if (activeComp) {
-                                      const isSettled = activeComp.settlement_agreed || activeComp.status === 'resolved';
-                                      const isExpired = activeComp.is_expired;
-                                      return (
-                                        <button
-                                          type="button"
-                                          onClick={() => setComplaintModalBooking(b)}
-                                          className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition-colors cursor-pointer shadow-2xs whitespace-nowrap ${
-                                            isSettled
-                                              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
-                                              : isExpired
-                                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300'
-                                              : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
-                                          }`}
-                                          title="View dispute resolution center and timeline"
-                                        >
-                                          <span>
-                                            {isSettled
-                                              ? 'Dispute: Settled'
-                                              : isExpired
-                                              ? 'Dispute: In Arbitration'
-                                              : `Dispute: ${activeComp.days_remaining ?? 7}d SLA left`}
-                                          </span>
-                                        </button>
-                                      );
-                                    }
-                                    return (
-                                      <button
-                                        type="button"
-                                        onClick={() => setComplaintModalBooking(b)}
-                                        className="px-2 py-1 text-slate-400 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-semibold rounded-lg border border-transparent hover:border-rose-200 transition-colors cursor-pointer whitespace-nowrap"
-                                        title="Report issue or file dispute with platform admin"
-                                      >
-                                        <span>Report Issue</span>
-                                      </button>
-                                    );
-                                  })()}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => onOpenChat?.({ vendorId: b.vendor_id, bookingId: b.id })}
-                                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-lg border border-blue-200 transition-colors cursor-pointer shadow-2xs"
-                                    title="Chat with Creative Studio regarding this project"
-                                  >
-                                    <span>Chat Studio</span>
-                                  </button>
-
-                                  {Number(b.paid_amount || 0) > 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setReceiptModalBooking(b)}
-                                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold rounded-lg border border-slate-300 transition-colors cursor-pointer shadow-2xs whitespace-nowrap"
-                                      title="View & print official transaction receipt"
-                                    >
-                                      <span>Receipt</span>
-                                    </button>
-                                  )}
-
-                                  {/* Expand Pipeline & Details Toggle */}
-                                  <button
-                                    type="button"
-                                    onClick={() => setExpandedBookingId(isExpanded ? null : b.id)}
-                                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                                  >
-                                    <span>{isExpanded ? 'Hide' : 'Details'}</span>
-                                    <span>{isExpanded ? '▲' : '▼'}</span>
-                                  </button>
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenChat?.({ vendorId: b.vendor_id, bookingId: b.id })}
+                                  className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-50 border border-slate-200 rounded-lg transition-all cursor-pointer"
+                                  title="Chat"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </td>
                           </tr>
