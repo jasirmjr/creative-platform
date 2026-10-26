@@ -1340,14 +1340,12 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400 font-semibold bg-slate-50/40">
-                      <th className="py-3.5 px-4 font-semibold">Project</th>
-                      <th className="py-3.5 px-4 font-semibold">Type</th>
-                      <th className="py-3.5 px-4 font-semibold">Role</th>
-                      <th className="py-3.5 px-4 font-semibold">Client</th>
-                      <th className="py-3.5 px-4 font-semibold">Shoot Dates</th>
-                      <th className="py-3.5 px-4 font-semibold">Financials</th>
-                      <th className="py-3.5 px-4 font-semibold">Status</th>
-                      <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
+                      <th className="py-3 px-4 font-semibold">Project</th>
+                      <th className="py-3 px-4 font-semibold">Client</th>
+                      <th className="py-3 px-4 font-semibold">Shoot Dates</th>
+                      <th className="py-3 px-4 font-semibold">Amount</th>
+                      <th className="py-3 px-4 font-semibold">Status</th>
+                      <th className="py-3 px-4 font-semibold text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -1364,12 +1362,12 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                             {/* 1. Project */}
                             <td className="py-3.5 px-4 align-middle">
                               <div className="font-semibold text-slate-900 text-xs sm:text-sm">
-                                {b.project_name || b.resource_title || 'Commercial Production Shoot'}
+                                {b.project_name || b.resource_title || 'Production Shoot'}
                               </div>
                               <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-                                <span className="font-mono">#{b.id.slice(0, 8)}</span>
+                                <span>{b.crew_bundle_id ? 'Crew Production' : 'Direct Booking'}</span>
                                 <span>&bull;</span>
-                                <span>{new Date(b.created_at).toLocaleDateString()}</span>
+                                <span className="font-mono">#{b.id.slice(0, 8)}</span>
                               </div>
                               {b.crew_bundle_id && (
                                 <button
@@ -1383,21 +1381,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                               )}
                             </td>
 
-                            {/* 2. Type */}
-                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                              <span className="text-xs text-slate-700 font-medium">
-                                {b.crew_bundle_id ? 'Crew Production' : 'Direct Booking'}
-                              </span>
-                            </td>
-
-                            {/* 3. Your Role */}
-                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                              <span className="text-xs text-slate-800 font-medium">
-                                {b.crew_role || b.category_name || 'Creator'}
-                              </span>
-                            </td>
-
-                            {/* 4. Client */}
+                            {/* 2. Client */}
                             <td className="py-3.5 px-4 align-middle">
                               <div className="text-xs font-semibold text-slate-900">
                                 {b.customer_name || 'Creative Client'}
@@ -1407,7 +1391,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                               </div>
                             </td>
 
-                            {/* 5. Shoot Dates */}
+                            {/* 3. Shoot Dates */}
                             <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                               <div className="text-xs font-medium text-slate-800">
                                 {new Date(b.start_date).toLocaleDateString()} &rarr; {new Date(b.end_date).toLocaleDateString()}
@@ -1417,7 +1401,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                               </div>
                             </td>
 
-                            {/* 6. Financials (Clean text without colored background boxes) */}
+                            {/* 4. Financials (Minimal text, no backgrounds) */}
                             <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                               <div className="font-semibold text-slate-900 font-mono text-xs">
                                 ₹{bTotal.toLocaleString()}
@@ -1428,44 +1412,40 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                                 ) : b.payment_status === 'advance_paid' || bPaid > 0 ? (
                                   <span>₹{bPaid.toLocaleString()} paid &bull; ₹{bBalance.toLocaleString()} due</span>
                                 ) : (
-                                  <span>₹{Number(b.advance_amount || Math.round(bTotal * 0.3)).toLocaleString()} advance req.</span>
+                                  <span>₹{Number(b.advance_amount || Math.round(bTotal * 0.3)).toLocaleString()} adv. req.</span>
                                 )}
                               </div>
                             </td>
 
-                            {/* 7. Status (Clean minimal indicator dot without colored background box) */}
+                            {/* 5. Status (Clean & Minimal text) */}
                             <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                              {b.status === 'confirmed' ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                  Confirmed
-                                </span>
-                              ) : b.status === 'deliverables_submitted' ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-600">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                                  Deliverables Review
-                                </span>
-                              ) : b.status === 'completed' ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                  Completed
-                                </span>
-                              ) : b.status === 'approved' ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                  Awaiting Advance
-                                </span>
-                              ) : b.status === 'rejected' || b.status === 'cancelled' ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-600">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                                  Declined
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                  Under Review
-                                </span>
-                              )}
+                              <span
+                                className={`text-xs font-medium ${
+                                  b.status === 'confirmed'
+                                    ? 'text-emerald-600'
+                                    : b.status === 'deliverables_submitted'
+                                    ? 'text-purple-600'
+                                    : b.status === 'completed'
+                                    ? 'text-blue-600'
+                                    : b.status === 'approved'
+                                    ? 'text-amber-600'
+                                    : b.status === 'rejected' || b.status === 'cancelled'
+                                    ? 'text-rose-500'
+                                    : 'text-amber-600'
+                                }`}
+                              >
+                                {b.status === 'confirmed'
+                                  ? 'Confirmed'
+                                  : b.status === 'deliverables_submitted'
+                                  ? 'Deliverables Review'
+                                  : b.status === 'completed'
+                                  ? 'Completed'
+                                  : b.status === 'approved'
+                                  ? 'Awaiting Advance'
+                                  : b.status === 'rejected' || b.status === 'cancelled'
+                                  ? 'Declined'
+                                  : 'Under Review'}
+                              </span>
 
                               {b.rejection_reason && (
                                 <div className="text-[10px] text-rose-500 italic mt-0.5 truncate max-w-[150px]" title={b.rejection_reason}>
@@ -1474,7 +1454,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                               )}
                             </td>
 
-                            {/* 8. Actions (Clean, minimal, consistent buttons) */}
+                            {/* 6. Actions (Clean, compact, professional) */}
                             <td className="py-3.5 px-4 align-middle text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-1.5">
                                 {(b.status === 'under_review' || b.status === 'availability_check' || b.status === 'new_request') && (
@@ -1568,7 +1548,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                           {/* Expandable Multi-Talent Breakdown Row */}
                           {isExpanded && b.crew_bundle_id && (
                             <tr className="bg-slate-50/50 border-b border-slate-100">
-                              <td colSpan={8} className="px-5 py-3">
+                              <td colSpan={6} className="px-5 py-3">
                                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
                                   <div>
                                     <span className="font-semibold text-slate-800">Multi-Talent Project:</span> {b.crew_bundle_name || b.project_name || 'Production Crew'} &bull; <span className="font-semibold text-slate-800">Assigned Role:</span> {b.crew_role || b.category_name}
