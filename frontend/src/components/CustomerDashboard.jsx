@@ -1095,120 +1095,499 @@ export default function CustomerDashboard({
         </div>
       )}
 
-      {/* HOME: what needs attention today */}
+      {/* HOME / DASHBOARD TAB */}
       {mainTab === 'dashboard' && (
         <div className="space-y-6">
-          <PageHeader
-            title={`${greeting()}, ${(user?.name || 'there').split(' ')[0]}`}
-            description={
-              urgentCount > 0
-                ? `You have ${urgentCount} ${urgentCount === 1 ? 'thing' : 'things'} to take care of.`
-                : bookings.length === 0
-                ? 'Find a photographer, videographer or crew for your next shoot.'
-                : "You're all caught up. Here's where your shoots stand."
-            }
-            actions={
-              <>
-                {onOpenCart && cartCount > 0 && (
-                  <Button variant="secondary" icon={ShoppingCart} onClick={onOpenCart}>
-                    Cart ({cartCount})
-                  </Button>
-                )}
-                <Button variant="primary" icon={Search} onClick={() => setMainTab('vendors')}>
-                  Find talent
-                </Button>
-              </>
-            }
-          />
+          {/* 1. Header Greeting & Action Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                  Client Workspace
+                </span>
+                <span className="text-xs text-slate-300">&bull;</span>
+                <span className="text-xs text-slate-500 font-medium">
+                  {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                {greeting()}, {(user?.name || 'there').split(' ')[0]}
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                {urgentCount > 0
+                  ? `You have ${urgentCount} action item${urgentCount > 1 ? 's' : ''} requiring payment or review.`
+                  : bookings.length === 0
+                  ? 'Welcome to Creative Hub! Search vetted creative talent or build a production crew.'
+                  : `All productions are on track with ${upcomingProjects.length} upcoming shoot${upcomingProjects.length !== 1 ? 's' : ''}.`}
+              </p>
+            </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatTile
-              label="Needs action"
-              value={urgentCount}
-              hint="Payments, files and replies"
-              icon={AlertCircle}
+            <div className="flex items-center gap-2.5 shrink-0">
+              {onOpenCart && cartCount > 0 && (
+                <button
+                  type="button"
+                  onClick={onOpenCart}
+                  className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <ShoppingCart className="w-4 h-4 text-slate-500" />
+                  <span>Cart ({cartCount})</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setMainTab('projects')}
+                className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <CalendarCheck className="w-4 h-4 text-slate-500" />
+                <span>My Bookings ({groupedProjects.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMainTab('vendors')}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Search className="w-4 h-4" />
+                <span>Find Talent</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Elevated 4-Metric KPI Grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1. Needs Action */}
+            <div
               onClick={() => {
                 setMainTab('projects');
                 setActiveFilter('action');
               }}
-            />
-            <StatTile
-              label="Waiting for reply"
-              value={underReviewCount}
-              hint="Partners reviewing your request"
-              icon={Clock}
+              className="bg-white border border-slate-200 hover:border-amber-300 rounded-2xl p-4.5 shadow-xs hover:shadow-sm transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 group-hover:text-slate-700">Needs Action</span>
+                <span className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center">
+                  <AlertCircle className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-slate-900 mt-2 font-mono">
+                {urgentCount}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Pending payments &amp; reviews</p>
+            </div>
+
+            {/* 2. Waiting for Reply */}
+            <div
               onClick={() => {
                 setMainTab('projects');
                 setActiveFilter('review');
               }}
-            />
-            <StatTile
-              label="Upcoming shoots"
-              value={upcomingProjects.length}
-              hint="Confirmed and locked"
-              icon={CalendarCheck}
+              className="bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-4.5 shadow-xs hover:shadow-sm transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 group-hover:text-slate-700">In Review</span>
+                <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-slate-900 mt-2 font-mono">
+                {underReviewCount}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Partners reviewing terms</p>
+            </div>
+
+            {/* 3. Upcoming Shoots */}
+            <div
               onClick={() => {
                 setMainTab('projects');
                 setActiveFilter('confirmed');
               }}
-            />
-            <StatTile label="Total paid" value={formatINR(totalInvested)} hint="Held safely until delivery" icon={ShieldCheck} />
+              className="bg-white border border-slate-200 hover:border-emerald-300 rounded-2xl p-4.5 shadow-xs hover:shadow-sm transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 group-hover:text-slate-700">Upcoming Shoots</span>
+                <span className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center">
+                  <CalendarCheck className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-slate-900 mt-2 font-mono">
+                {upcomingProjects.length}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Confirmed &amp; locked</p>
+            </div>
+
+            {/* 4. Total Invested */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4.5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">Total Invested</span>
+                <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-slate-900 mt-2 font-mono">
+                {formatINR(totalInvested)}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">100% Escrow protected</p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-            <Section
-              className="xl:col-span-2"
-              title="Needs your attention"
-              action={
-                <Button size="sm" variant="ghost" onClick={() => setMainTab('projects')}>
-                  All bookings
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              }
-            >
+          {/* 3. Action Desk & Upcoming Schedule Split */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* Left 2 Cols: Needs Your Attention */}
+            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Needs Your Attention
+                  </h2>
+                  {urgentCount > 0 && (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                      {urgentCount} Action Required
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMainTab('projects')}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                >
+                  <span>All Bookings</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
               {loadingBookings ? (
-                <p className="px-5 py-10 text-sm text-slate-500 text-center">Loading…</p>
-              ) : bookings.length === 0 ? (
+                <p className="px-5 py-10 text-xs text-slate-500 text-center">Loading action items…</p>
+              ) : attentionItems.length === 0 ? (
                 <div className="px-5 py-10 text-center">
-                  <Sparkles className="w-8 h-8 text-blue-500 mx-auto" />
-                  <p className="text-sm font-semibold text-slate-800 mt-2">No bookings yet</p>
-                  <p className="text-sm text-slate-500 mt-1">Browse verified creatives and add them to your cart to request dates.</p>
-                  <Button variant="primary" className="mt-4" onClick={() => setMainTab('vendors')}>
-                    Browse talent
-                  </Button>
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                  <p className="text-sm font-semibold text-slate-800 mt-2">You're all caught up!</p>
+                  <p className="text-xs text-slate-500 mt-1">No pending payments, file reviews, or partner disputes.</p>
                 </div>
               ) : (
-                <AttentionList items={attentionItems} emptyText="Payments, deliveries and replies will show up here." />
+                <ul className="divide-y divide-slate-100">
+                  {attentionItems.map((item) => (
+                    <li key={item.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 hover:bg-slate-50/50 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 mt-1 shrink-0" />
+                        <div>
+                          <p className="text-xs sm:text-sm font-bold text-slate-900">{item.title}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{item.detail}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        {item.actions?.map((a) => (
+                          <button
+                            key={a.label}
+                            type="button"
+                            onClick={a.onClick}
+                            disabled={a.disabled}
+                            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap disabled:opacity-50"
+                          >
+                            {a.label}
+                          </button>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
-            </Section>
+            </div>
 
-            <Section title="Upcoming shoots">
+            {/* Right 1 Col: Upcoming Shoots */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-slate-600" />
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Upcoming Shoots
+                  </h2>
+                </div>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  {upcomingProjects.length} Confirmed
+                </span>
+              </div>
+
               {upcomingProjects.length === 0 ? (
-                <p className="px-5 py-10 text-sm text-slate-500 text-center">No confirmed shoots coming up.</p>
+                <div className="p-8 text-center">
+                  <CalendarCheck className="w-7 h-7 text-slate-300 mx-auto" />
+                  <p className="text-xs font-semibold text-slate-700 mt-2">No upcoming shoots</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">When dates are confirmed, they show up here.</p>
+                </div>
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {upcomingProjects.slice(0, 5).map((x) => (
-                    <li key={x.id} className="px-5 py-3 flex items-center gap-3">
+                  {upcomingProjects.slice(0, 4).map((x) => (
+                    <li key={x.id} className="p-4 flex items-center gap-3 hover:bg-slate-50/50 transition-colors">
                       <DateChip date={x.start_date} />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{x.name}</p>
-                        <p className="text-xs text-slate-500 truncate">{x.who}</p>
+                        <p className="text-xs font-bold text-slate-900 truncate">{x.name}</p>
+                        <p className="text-[11px] text-slate-500 truncate">{x.who}</p>
                       </div>
                       {x.chat && (
                         <button
                           type="button"
                           onClick={() => onOpenChat?.(x.chat)}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 rounded-lg cursor-pointer transition-colors"
                           title="Message partner"
                         >
-                          <MessageSquare className="w-4 h-4" />
+                          <MessageSquare className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </li>
                   ))}
                 </ul>
               )}
-            </Section>
+            </div>
+          </div>
+
+          {/* 4. Active Client Projects Overview Table (Resolves empty void on the screen!) */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <Layers className="w-4 h-4 text-slate-600" />
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Recent &amp; Active Client Projects
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Live production schedule and current status milestones.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMainTab('projects')}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+              >
+                <span>View Full Project Ledger</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {loadingBookings ? (
+              <div className="py-12 text-center text-xs text-slate-500">Loading projects...</div>
+            ) : groupedProjects.length === 0 ? (
+              <div className="p-10 text-center">
+                <Sparkles className="w-8 h-8 text-blue-500 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-800 mt-2">No projects booked yet</h4>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                  Browse our curated directory of photographers, cinematographers, and studios to book your first project.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setMainTab('vendors')}
+                  className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  Browse Creative Talent &rarr;
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left border-collapse table-auto">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400 font-semibold bg-slate-50/40">
+                      <th className="py-3 px-4 font-semibold w-[30%] min-w-[180px]">Project</th>
+                      <th className="py-3 px-4 font-semibold w-[20%] min-w-[140px]">Creative Partner</th>
+                      <th className="py-3 px-4 font-semibold w-[18%] min-w-[130px]">Shoot Dates</th>
+                      <th className="py-3 px-4 font-semibold w-[16%] min-w-[120px]">Budget &amp; Escrow</th>
+                      <th className="py-3 px-4 font-semibold w-[16%] min-w-[120px]">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {groupedProjects.slice(0, 5).map((p) => {
+                      if (p.isBundle) {
+                        return (
+                          <tr
+                            key={p.bundleId}
+                            onClick={() => setMainTab('projects')}
+                            className="hover:bg-slate-50/60 transition-colors cursor-pointer"
+                          >
+                            <td className="py-3.5 px-4 align-middle">
+                              <div className="font-semibold text-slate-900 text-xs sm:text-sm">
+                                {p.bundleName}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                                <span>Crew ({p.members.length} Specialists)</span>
+                                <span>&bull;</span>
+                                <span className="font-mono">#{p.bundleId.slice(0, 8)}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 align-middle">
+                              <div className="text-xs font-medium text-slate-900">
+                                {p.members[0]?.business_name || p.members[0]?.provider_name || 'Creative Crew'}
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                {p.members.length} partners booked
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="text-xs font-medium text-slate-800">
+                                {p.startDate && p.endDate
+                                  ? `${new Date(p.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} → ${new Date(p.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                                  : 'Dates synchronized'}
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">{p.duration || 'Multi-day Shoot'}</div>
+                            </td>
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="font-semibold text-slate-900 font-mono text-xs">
+                                ₹{p.totalAmount.toLocaleString()}
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                {p.paidAmount >= p.totalAmount && p.totalAmount > 0 ? (
+                                  <span className="text-emerald-600 font-medium">Fully Paid</span>
+                                ) : p.paidAmount > 0 ? (
+                                  <span>Paid: ₹{p.paidAmount.toLocaleString()}</span>
+                                ) : (
+                                  <span>Advance Req.</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    p.hasDeclined
+                                      ? 'bg-rose-500'
+                                      : p.allConfirmed
+                                      ? 'bg-emerald-500'
+                                      : p.allCompleted
+                                      ? 'bg-blue-500'
+                                      : 'bg-amber-500'
+                                  }`}
+                                />
+                                <span className="text-xs font-medium text-slate-800">
+                                  {p.hasDeclined
+                                    ? 'Role Declined'
+                                    : p.allConfirmed
+                                    ? 'Confirmed & Locked'
+                                    : p.allCompleted
+                                    ? 'Completed'
+                                    : 'In Review'}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      const b = p.booking;
+                      return (
+                        <tr
+                          key={b.id}
+                          onClick={() => setMainTab('projects')}
+                          className="hover:bg-slate-50/60 transition-colors cursor-pointer"
+                        >
+                          <td className="py-3.5 px-4 align-middle">
+                            <div className="font-semibold text-slate-900 text-xs sm:text-sm">
+                              {b.project_name || b.resource_title}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                              <span>{b.category_name || 'Creative Service'}</span>
+                              <span>&bull;</span>
+                              <span className="font-mono">#{b.id.slice(0, 8)}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 align-middle">
+                            <div className="text-xs font-medium text-slate-900">
+                              {b.business_name || b.provider_name || 'Creative Studio'}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              {b.vendor_location || b.project_location || 'India'}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                            <div className="text-xs font-medium text-slate-800">
+                              {new Date(b.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} &rarr; {new Date(b.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">{b.duration || '1 Day'}</div>
+                          </td>
+                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                            <div className="font-semibold text-slate-900 font-mono text-xs">
+                              ₹{Number(b.total_amount || 0).toLocaleString()}
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              {b.payment_status === 'paid' ? (
+                                <span className="text-emerald-600 font-medium">Fully Paid</span>
+                              ) : Number(b.paid_amount || 0) > 0 ? (
+                                <span>Paid: ₹{Number(b.paid_amount || 0).toLocaleString()}</span>
+                              ) : (
+                                <span>Advance Req.</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                  b.status === 'confirmed'
+                                    ? 'bg-emerald-500'
+                                    : b.status === 'completed'
+                                    ? 'bg-blue-500'
+                                    : b.status === 'deliverables_submitted'
+                                    ? 'bg-purple-500'
+                                    : 'bg-amber-500'
+                                }`}
+                              />
+                              <span className="text-xs font-medium text-slate-800 capitalize">
+                                {b.status === 'confirmed'
+                                  ? 'Confirmed'
+                                  : b.status === 'completed'
+                                  ? 'Completed'
+                                  : b.status.replace('_', ' ')}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* 5. Quick Creative Category Explorer */}
+          <div>
+            <div className="flex items-center justify-between mb-3.5">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Explore Talent by Discipline
+              </h3>
+              <button
+                type="button"
+                onClick={() => setMainTab('vendors')}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+              >
+                <span>Browse All</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+              {[
+                { title: 'Cinematographers', desc: 'Feature films, ads & music videos', icon: Video, color: 'text-blue-600 bg-blue-50 border-blue-200' },
+                { title: 'Photographers', desc: 'Fashion, commercial & events', icon: Camera, color: 'text-purple-600 bg-purple-50 border-purple-200' },
+                { title: 'Drone Specialists', desc: 'Certified 4K aerial cinematography', icon: Sparkles, color: 'text-amber-600 bg-amber-50 border-amber-200' },
+                { title: 'Post-Production', desc: 'Editing, color grading & VFX', icon: Layers, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+              ].map((cat) => (
+                <div
+                  key={cat.title}
+                  onClick={() => {
+                    setMainTab('vendors');
+                    setVendorSearch(cat.title.slice(0, 5));
+                  }}
+                  className="bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-4 shadow-xs hover:shadow-sm transition-all cursor-pointer group"
+                >
+                  <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${cat.color}`}>
+                    <cat.icon className="w-4 h-4" />
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-900 mt-3 group-hover:text-blue-600 transition-colors">
+                    {cat.title}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                    {cat.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
