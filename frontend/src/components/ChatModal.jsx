@@ -1,5 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getSocket } from '../utils/socket';
+import {
+  X,
+  Search,
+  Paperclip,
+  Send,
+  ArrowLeft,
+  Check,
+  CheckCheck,
+  MessageSquare,
+  ShieldCheck,
+  FileText,
+  Download,
+  AlertTriangle,
+} from 'lucide-react';
 
 export default function ChatModal({
   isOpen,
@@ -49,11 +63,11 @@ export default function ChatModal({
         };
       } else {
         return {
-          title: 'Platform Administrator',
+          title: 'Creative Hub Support',
           subtitle: c.admin_name ? `Handled by ${c.admin_name}` : 'Creative Hub Official Support',
-          badge: '🛡️ Platform Admin',
+          badge: 'Platform Admin',
           isSupport: true,
-          avatarLetter: '🛡️',
+          avatarLetter: 'S',
           avatarGradient: 'from-blue-700 to-slate-900',
         };
       }
@@ -400,152 +414,146 @@ export default function ChatModal({
     );
   });
 
+  // On wide screens, open the most recent conversation instead of an empty pane
+  useEffect(() => {
+    if (!isOpen || activeConvId || loadingConversations || conversations.length === 0) return;
+    if (initialVendorId || initialBookingId || initialType || initialConversationId) return;
+    if (window.matchMedia('(min-width: 640px)').matches) {
+      setActiveConvId(conversations[0].id);
+    }
+  }, [isOpen, activeConvId, loadingConversations, conversations, initialVendorId, initialBookingId, initialType, initialConversationId]);
+
   if (!isOpen) return null;
+
+  const isAdminUser = user?.role === 'admin' || user?.role === 'super_admin';
+  const activeMeta = getConversationMeta(activeConv);
+
+  const isSameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+  const formatTime = (d) => new Date(d).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const formatDayLabel = (d) => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (isSameDay(d, new Date())) return 'Today';
+    if (isSameDay(d, yesterday)) return 'Yesterday';
+    return new Date(d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  };
+  const formatListTime = (d) => {
+    if (!d) return '';
+    if (isSameDay(d, new Date())) return formatTime(d);
+    const label = formatDayLabel(d);
+    return label === 'Yesterday' ? label : new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  };
+
+  const AvatarBubble = ({ meta, size = 'w-10 h-10 text-sm' }) => (
+    <div className={`${size} rounded-full bg-gradient-to-br ${meta.avatarGradient} text-white font-semibold flex items-center justify-center shrink-0`}>
+      {meta.isSupport && !isAdminUser ? <ShieldCheck className="w-5 h-5" /> : meta.avatarLetter}
+    </div>
+  );
 
   return (
     <div
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-xs"
     >
-      <div className="bg-white border border-slate-200 w-full max-w-4xl h-[680px] max-h-[92vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col sm:flex-row relative">
-        
-        {/* LEFT COLUMN: Conversations List */}
-        <div
-          className={`w-full sm:w-80 border-r border-slate-200 bg-slate-50 flex flex-col ${
-            activeConvId ? 'hidden sm:flex' : 'flex'
-          }`}
-        >
-          {/* List Header */}
-          <div className="p-3.5 border-b border-slate-200 bg-white flex items-center justify-between">
+      <div className="bg-white w-full max-w-5xl h-full sm:h-[min(720px,92vh)] sm:rounded-2xl shadow-2xl overflow-hidden flex">
+        {/* Conversation list */}
+        <div className={`w-full min-w-0 sm:w-80 sm:shrink-0 border-r border-slate-200 flex-col ${activeConvId ? 'hidden sm:flex' : 'flex'}`}>
+          <div className="px-4 pt-4 pb-3 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 leading-tight">
-                {user?.role === 'admin' || user?.role === 'super_admin'
-                  ? 'Vendor Support Messages'
-                  : user?.role === 'vendor'
-                  ? 'Client Project Messages'
-                  : 'Messages'}
-              </h3>
-              <p className="text-[10px] text-slate-500 font-medium">
-                {user?.role === 'admin' || user?.role === 'super_admin'
-                  ? 'Creative Hub Operations Desk'
-                  : user?.role === 'vendor'
-                  ? 'Direct Client Project Shoots'
-                  : 'Direct Project Chat'}
+              <h3 className="text-lg font-bold text-slate-900">Messages</h3>
+              <p className="text-xs text-slate-500">
+                {isAdminUser ? 'Vendor support threads' : user?.role === 'vendor' ? 'Chats with your clients' : 'Chats with your creative partners'}
               </p>
             </div>
             <button
+              type="button"
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-              title="Close messages and return to dashboard"
+              className="sm:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
+              aria-label="Close messages"
             >
-              <span>✕</span>
-              <span>Close</span>
+              <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Search Bar */}
-          <div className="p-3 border-b border-slate-200 bg-white/60">
-            <input
-              type="text"
-              placeholder="Search partner or project..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all"
-            />
+          <div className="px-4 pb-3">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search by name or project"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-100 border border-transparent rounded-lg pl-9 pr-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500"
+              />
+            </div>
           </div>
 
-          {/* Conversation Items */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+          <div className="flex-1 overflow-y-auto">
             {loadingConversations ? (
-              <div className="p-8 text-center text-xs text-slate-400">Loading chats...</div>
+              <p className="p-8 text-center text-sm text-slate-400">Loading conversations…</p>
             ) : filteredConversations.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400 space-y-1">
-                <p className="font-semibold text-slate-600">No Client Conversations Yet</p>
-                <p className="text-[11px] text-slate-400">
-                  {user?.role === 'admin' || user?.role === 'super_admin'
-                    ? 'Click "Message" on any registered vendor to open a direct support thread.'
-                    : user?.role === 'customer'
-                    ? 'Message any studio or click "Chat with Studio" on your bookings.'
-                    : 'Client messages for your project bookings and equipment holds will appear here.'}
+              <div className="p-8 text-center">
+                <MessageSquare className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-sm font-semibold text-slate-700 mt-2">
+                  {searchQuery ? 'No matching conversations' : 'No conversations yet'}
                 </p>
+                {!searchQuery && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {isAdminUser
+                      ? 'Use "Message" on a vendor to start a support thread.'
+                      : user?.role === 'customer'
+                      ? 'Use "Message" on any booking or creative profile to start chatting.'
+                      : 'Messages from clients about your bookings will appear here.'}
+                  </p>
+                )}
               </div>
             ) : (
               filteredConversations.map((c) => {
                 const meta = getConversationMeta(c);
                 const isSelected = c.id === activeConvId;
-
+                const unread = c.unread_count > 0;
                 return (
                   <button
                     key={c.id}
+                    type="button"
                     onClick={() => setActiveConvId(c.id)}
-                    className={`w-full text-left p-3.5 flex items-start gap-3 transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-blue-50/80 border-l-4 border-blue-600'
-                        : 'hover:bg-slate-100/70'
+                    className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors cursor-pointer ${
+                      isSelected ? 'bg-blue-50' : 'hover:bg-slate-50'
                     }`}
                   >
-                    {/* Avatar */}
-                    <div className="relative shrink-0">
-                      <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${meta.avatarGradient} text-white font-bold flex items-center justify-center text-sm shadow-xs`}>
-                        {meta.avatarLetter}
-                      </div>
-                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
-                    </div>
-
-                    {/* Metadata */}
+                    <AvatarBubble meta={meta} />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-bold text-slate-900 truncate">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className={`text-sm truncate ${unread ? 'font-bold text-slate-900' : 'font-semibold text-slate-800'}`}>
                           {meta.title}
                         </span>
-                        {c.last_message_at && (
-                          <span className="text-[10px] text-slate-400 shrink-0">
-                            {new Date(c.last_message_at).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                        <span className={`text-[11px] shrink-0 ${unread ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>
+                          {formatListTime(c.last_message_at)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 truncate">
+                        {c.type === 'admin_vendor' ? 'Platform support' : c.project_name || meta.subtitle}
+                      </p>
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <p className={`text-xs truncate min-w-0 ${unread ? 'text-slate-800 font-medium' : 'text-slate-400'}`}>
+                          {c.last_message?.file_name ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Paperclip className="w-3 h-3" />
+                              {c.last_message.file_name}
+                            </span>
+                          ) : (
+                            c.last_message?.message || 'No messages yet'
+                          )}
+                        </p>
+                        {unread && (
+                          <span className="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-600 text-white text-[11px] font-semibold flex items-center justify-center">
+                            {c.unread_count}
                           </span>
                         )}
                       </div>
-
-                      {/* Tag: Admin Support or Project Tag */}
-                      {c.type === 'admin_vendor' ? (
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <span className="text-[9px] font-bold text-purple-700 bg-purple-100/80 px-1.5 py-0.2 rounded truncate">
-                            🛡️ Platform Support
-                          </span>
-                        </div>
-                      ) : c.project_name ? (
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <span className="text-[9px] font-semibold text-blue-700 bg-blue-100/70 px-1.5 py-0.2 rounded truncate">
-                            {c.project_name}
-                          </span>
-                        </div>
-                      ) : null}
-
-                      {/* Message Preview */}
-                      <p className="text-[11px] text-slate-500 truncate mt-1">
-                        {c.last_message?.file_name ? (
-                          <span className="font-semibold text-slate-700 flex items-center gap-1">
-                            <span className="text-[9px] uppercase px-1 bg-slate-200 rounded text-slate-600">File</span>
-                            <span>{c.last_message.file_name}</span>
-                          </span>
-                        ) : c.last_message?.message ? (
-                          c.last_message.message
-                        ) : (
-                          <span className="italic text-slate-400">Conversation started</span>
-                        )}
-                      </p>
                     </div>
-
-                    {/* Unread Counter Badge */}
-                    {c.unread_count > 0 && (
-                      <span className="shrink-0 bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                        {c.unread_count}
-                      </span>
-                    )}
                   </button>
                 );
               })
@@ -553,307 +561,195 @@ export default function ChatModal({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Active Chat Thread */}
-        <div
-          className={`flex-1 flex flex-col bg-white ${
-            !activeConvId ? 'hidden sm:flex' : 'flex'
-          }`}
-        >
+        {/* Active thread */}
+        <div className={`flex-1 min-w-0 flex-col bg-white ${!activeConvId ? 'hidden sm:flex' : 'flex'}`}>
           {activeConv ? (
             <>
-              {/* Thread Header */}
-              <div className="p-3.5 border-b border-slate-200 flex items-center justify-between bg-white shadow-2xs">
-                <div className="flex items-center gap-3">
-                  {/* Mobile Back Button */}
-                  <button
-                    onClick={() => setActiveConvId(null)}
-                    className="sm:hidden text-slate-500 hover:text-slate-800 text-sm font-bold pr-1"
-                  >
-                    &larr; Back
-                  </button>
-
-                  <div className="relative">
-                    <div className={`w-9 h-9 rounded-full bg-gradient-to-tr ${getConversationMeta(activeConv).avatarGradient} text-white font-bold flex items-center justify-center text-xs shadow-xs`}>
-                      {getConversationMeta(activeConv).avatarLetter}
-                    </div>
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                        {getConversationMeta(activeConv).title}
-                      </h4>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                        activeConv.type === 'admin_vendor'
-                          ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}>
-                        {getConversationMeta(activeConv).badge}
-                      </span>
-                    </div>
-
-                    {partnerTyping ? (
-                      <p className="text-[10px] text-blue-600 font-bold animate-pulse mt-0.5">
-                        Typing a message...
-                      </p>
-                    ) : (
-                      <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
-                        ● Online & Ready to chat
-                      </p>
-                    )}
-                  </div>
+              <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveConvId(null)}
+                  className="sm:hidden p-1.5 -ml-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
+                  aria-label="Back to conversations"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <AvatarBubble meta={activeMeta} size="w-9 h-9 text-sm" />
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-semibold text-slate-900 truncate">{activeMeta.title}</h4>
+                  <p className={`text-xs truncate ${partnerTyping ? 'text-blue-600 font-medium' : 'text-slate-500'}`}>
+                    {partnerTyping ? 'Typing…' : activeMeta.subtitle}
+                  </p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Booking or Support Context Pill */}
-                  {activeConv.type === 'admin_vendor' ? (
-                    <div className="hidden md:flex flex-col items-end">
-                      <span className="text-[10px] font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-                        🛡️ Platform Support
-                      </span>
-                      <span className="text-[9px] text-slate-500">
-                        {activeConv.business_name}
-                      </span>
-                    </div>
-                  ) : activeConv.project_name ? (
-                    <div className="hidden md:flex flex-col items-end">
-                      <span className="text-[10px] font-bold text-slate-700">
-                        {activeConv.project_name}
-                      </span>
-                      <span className="text-[9px] text-slate-500 font-mono">
-                        Budget: ₹{Number(activeConv.booking_total_amount || 0).toLocaleString()}
-                      </span>
-                    </div>
-                  ) : null}
-
-                  <button
-                    onClick={onClose}
-                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-sm transition-colors cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
+                {activeConv.type !== 'admin_vendor' && activeConv.project_name && Number(activeConv.booking_total_amount) > 0 && (
+                  <div className="hidden md:block text-right">
+                    <p className="text-xs font-medium text-slate-700 truncate max-w-48">{activeConv.project_name}</p>
+                    <p className="text-xs text-slate-500">₹{Number(activeConv.booking_total_amount).toLocaleString('en-IN')}</p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
+                  aria-label="Close messages"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              {/* Official Support Channel Banner */}
               {activeConv.type === 'admin_vendor' && (
-                <div className="px-4 py-2 bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 border-b border-indigo-100 flex items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2 text-indigo-900">
-                    <span className="text-sm">🛡️</span>
-                    <span className="font-semibold">
-                      {user?.role === 'admin' || user?.role === 'super_admin'
-                        ? `Official Platform Support Thread with ${activeConv.business_name || 'Vendor'}`
-                        : 'Official Platform Support Channel — Creative Hub Administration'}
+                <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2 text-xs text-indigo-900">
+                  <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+                  {isAdminUser
+                    ? `Official support thread with ${activeConv.business_name || 'this vendor'}`
+                    : 'Official Creative Hub support. Our team usually replies within a few hours.'}
+                </div>
+              )}
+
+              {activeConv.active_complaint && (
+                <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-xs">
+                  <span className="flex items-center gap-2 text-amber-900 font-medium min-w-0">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="truncate">
+                      Open dispute #{activeConv.active_complaint.complaint_number}: {activeConv.active_complaint.subject}
                     </span>
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-white/80 px-2 py-0.5 rounded border border-indigo-200">
-                    Verified Desk
+                  </span>
+                  <span className="sm:ml-auto text-amber-800 shrink-0">
+                    {activeConv.active_complaint.is_expired
+                      ? 'Response window ended · with admin'
+                      : `${activeConv.active_complaint.days_remaining}d ${activeConv.active_complaint.hours_remaining}h left to resolve`}
                   </span>
                 </div>
               )}
 
-              {/* Active Resolution Center Dispute Banner */}
-              {activeConv.active_complaint && (
-                <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200 text-amber-900 border border-amber-300 uppercase">
-                      Resolution Center
-                    </span>
-                    <span className="font-semibold text-amber-950 truncate max-w-xs">
-                      #{activeConv.active_complaint.complaint_number}: {activeConv.active_complaint.subject}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[11px] font-bold text-amber-900">
-                      {activeConv.active_complaint.is_expired
-                        ? 'SLA Expired (In Arbitration)'
-                        : `1-Wk Window: ${activeConv.active_complaint.days_remaining}d remaining (${activeConv.active_complaint.hours_remaining}h)`}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Messages Scroll Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+              <div className="flex-1 overflow-y-auto px-4 py-4 bg-slate-50">
                 {loadingMessages ? (
-                  <div className="py-12 text-center text-xs text-slate-400">
-                    Loading messages...
-                  </div>
+                  <p className="py-12 text-center text-sm text-slate-400">Loading messages…</p>
                 ) : messages.length === 0 ? (
-                  <div className="py-16 text-center space-y-2">
-                    <p className="text-xs font-bold text-slate-700">
+                  <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                    <AvatarBubble meta={activeMeta} size="w-14 h-14 text-lg" />
+                    <p className="text-sm font-semibold text-slate-800 mt-3">
                       {activeConv.type === 'admin_vendor'
-                        ? user?.role === 'admin' || user?.role === 'super_admin'
-                          ? `Start official support communication with ${activeConv.business_name}.`
-                          : 'How can the platform administration help your studio today?'
-                        : `Say hello to ${user?.role === 'vendor' ? activeConv.customer_name : activeConv.business_name}!`}
+                        ? isAdminUser
+                          ? `Start a support conversation with ${activeConv.business_name}`
+                          : 'How can we help your studio today?'
+                        : `Say hello to ${activeMeta.title}`}
                     </p>
-                    <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                    <p className="text-sm text-slate-500 mt-1 max-w-xs">
                       {activeConv.type === 'admin_vendor'
-                        ? 'Discuss policy questions, profile verification, payment deposit status, or disputes.'
-                        : 'Discuss shoot requirements, equipment details, schedule adjustments, or attach reference files.'}
+                        ? 'Ask about verification, deposits, payouts or disputes.'
+                        : 'Share shoot details, timings, references or files.'}
                     </p>
                   </div>
                 ) : (
-                  messages.map((m, idx) => {
-                    const isMe = m.sender_id === user?.id;
+                  <div className="space-y-1">
+                    {messages.map((m, idx) => {
+                      const isMe = m.sender_id === user?.id;
+                      const prev = messages[idx - 1];
+                      const showDay = !prev || !isSameDay(prev.created_at, m.created_at);
+                      const grouped = prev && !showDay && prev.sender_id === m.sender_id;
 
-                    return (
-                      <div
-                        key={m.id || idx}
-                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                      >
-                        {/* Sender Tag if Admin or Partner */}
-                        {!isMe && m.sender_role === 'admin' && (
-                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.2 rounded mb-1 flex items-center gap-1">
-                            <span>🛡️</span>
-                            <span>Platform Support</span>
-                          </span>
-                        )}
-                        {!isMe && m.sender_role === 'vendor' && (user?.role === 'admin' || user?.role === 'super_admin') && (
-                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded mb-1">
-                            {activeConv?.business_name || m.sender_name || 'Vendor'}
-                          </span>
-                        )}
-
-                        <div
-                          className={`max-w-[85%] sm:max-w-[70%] p-3 text-xs leading-relaxed shadow-xs ${
-                            isMe
-                              ? 'bg-blue-600 text-white rounded-2xl rounded-tr-xs'
-                              : m.sender_role === 'admin'
-                              ? 'bg-purple-50/90 border border-purple-200 text-slate-800 rounded-2xl rounded-tl-xs'
-                              : 'bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-tl-xs'
-                          }`}
-                        >
-                          {/* Message Text */}
-                          {m.message && <p className="whitespace-pre-wrap">{m.message}</p>}
-
-                          {/* File Attachment Presentation */}
-                          {m.file_url && (
-                            <div className={`mt-2 ${m.message ? 'pt-2 border-t border-white/20' : ''}`}>
-                              {m.file_type === 'image' ? (
-                                <a
-                                  href={`${m.file_url}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block rounded-xl overflow-hidden group relative"
-                                >
-                                  <img
-                                    src={`${m.file_url}`}
-                                    alt={m.file_name || 'Attached Image'}
-                                    className="max-h-56 w-auto object-cover rounded-xl border border-black/10 group-hover:opacity-95 transition-opacity"
-                                  />
-                                  <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded backdrop-blur-xs font-semibold">
-                                    Click to View ↗
-                                  </span>
-                                </a>
-                              ) : m.file_type === 'video' ? (
-                                <video
-                                  src={`${m.file_url}`}
-                                  controls
-                                  className="max-h-56 w-full rounded-xl"
-                                />
-                              ) : (
-                                <a
-                                  href={`${m.file_url}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  download
-                                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-colors ${
-                                    isMe
-                                      ? 'bg-blue-700/60 border-blue-400/40 text-white hover:bg-blue-700'
-                                      : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100'
-                                  }`}
-                                >
-                                  <span className="text-[10px] font-bold text-slate-500 bg-slate-200/80 px-2 py-1 rounded uppercase">
-                                    {m.file_type || 'File'}
-                                  </span>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-[11px] truncate">
-                                      {m.file_name || 'Attached Document'}
-                                    </p>
-                                    <p className={`text-[10px] ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
-                                      {m.file_size
-                                        ? `${(Number(m.file_size) / (1024 * 1024)).toFixed(2)} MB`
-                                        : 'Download Attachment'}
-                                    </p>
-                                  </div>
-                                  <span className="text-xs font-semibold underline">Download</span>
-                                </a>
-                              )}
+                      return (
+                        <React.Fragment key={m.id || idx}>
+                          {showDay && (
+                            <div className="flex justify-center py-3">
+                              <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 rounded-full px-3 py-0.5">
+                                {formatDayLabel(m.created_at)}
+                              </span>
                             </div>
                           )}
-                        </div>
+                          <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} ${grouped ? '' : 'pt-2'}`}>
+                            {!isMe && !grouped && m.sender_role === 'admin' && (
+                              <span className="text-[11px] font-semibold text-indigo-700 mb-1 flex items-center gap-1">
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                Creative Hub Support
+                              </span>
+                            )}
+                            {!isMe && !grouped && m.sender_role === 'vendor' && isAdminUser && (
+                              <span className="text-[11px] font-semibold text-slate-600 mb-1">
+                                {activeConv?.business_name || m.sender_name || 'Vendor'}
+                              </span>
+                            )}
 
-                        {/* Timestamp & Read Receipts */}
-                        <div
-                          className={`flex items-center gap-1 text-[10px] text-slate-400 mt-1 px-1 ${
-                            isMe ? 'flex-row-reverse' : ''
-                          }`}
-                        >
-                          <span>
-                            {new Date(m.created_at).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                          {isMe && (
-                            <span className={m.is_read ? 'text-blue-600 font-bold' : 'text-slate-400'}>
-                              {m.is_read ? '✓✓ Read' : '✓ Sent'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
+                            <div
+                              className={`max-w-[85%] sm:max-w-[70%] px-3.5 py-2 text-sm leading-relaxed rounded-2xl ${
+                                isMe
+                                  ? 'bg-blue-600 text-white rounded-br-md'
+                                  : m.sender_role === 'admin'
+                                  ? 'bg-indigo-50 border border-indigo-100 text-slate-800 rounded-bl-md'
+                                  : 'bg-white border border-slate-200 text-slate-800 rounded-bl-md'
+                              }`}
+                            >
+                              {m.message && <p className="whitespace-pre-wrap break-words">{m.message}</p>}
+
+                              {m.file_url && (
+                                <div className={m.message ? 'mt-2' : ''}>
+                                  {m.file_type === 'image' ? (
+                                    <a href={m.file_url} target="_blank" rel="noopener noreferrer" className="block">
+                                      <img
+                                        src={m.file_url}
+                                        alt={m.file_name || 'Attached image'}
+                                        className="max-h-60 w-auto rounded-lg hover:opacity-95 transition-opacity"
+                                      />
+                                    </a>
+                                  ) : m.file_type === 'video' ? (
+                                    <video src={m.file_url} controls className="max-h-60 w-full rounded-lg" />
+                                  ) : (
+                                    <a
+                                      href={m.file_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      download
+                                      className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
+                                        isMe ? 'bg-white/15 hover:bg-white/25' : 'bg-slate-50 border border-slate-200 hover:bg-slate-100'
+                                      }`}
+                                    >
+                                      <FileText className={`w-8 h-8 shrink-0 ${isMe ? 'text-white' : 'text-blue-600'}`} />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">{m.file_name || 'Attachment'}</p>
+                                        <p className={`text-xs ${isMe ? 'text-blue-100' : 'text-slate-500'}`}>
+                                          {m.file_size ? `${(Number(m.file_size) / (1024 * 1024)).toFixed(1)} MB` : 'File'}
+                                        </p>
+                                      </div>
+                                      <Download className="w-4 h-4 shrink-0" />
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className={`flex items-center gap-1 text-[11px] text-slate-400 mt-0.5 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
+                              <span>{formatTime(m.created_at)}</span>
+                              {isMe &&
+                                (m.is_read ? (
+                                  <CheckCheck className="w-3.5 h-3.5 text-blue-600" aria-label="Read" />
+                                ) : (
+                                  <Check className="w-3.5 h-3.5" aria-label="Sent" />
+                                ))}
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
                 )}
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Selected File Badge Preview */}
-              {selectedFile && (
-                <div className="px-4 py-2 bg-blue-50 border-t border-blue-200 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded">File</span>
-                    <div>
-                      <span className="font-bold text-blue-950 block truncate max-w-xs sm:max-w-md">
-                        {selectedFile.name}
-                      </span>
-                      <span className="text-[10px] text-blue-700">
-                        {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB &bull; Ready to send
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setSelectedFile(null);
-                      if (fileInputRef.current) fileInputRef.current.value = '';
-                    }}
-                    className="text-slate-500 hover:text-rose-600 text-sm font-bold p-1 cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-
-              {/* Admin Support Quick Canned Responses */}
-              {(user?.role === 'admin' || user?.role === 'super_admin') && activeConv?.type === 'admin_vendor' && (
-                <div className="px-3 py-2 bg-purple-50/80 border-t border-purple-100 flex items-center gap-1.5 overflow-x-auto text-[11px] scrollbar-none">
-                  <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider shrink-0 flex items-center gap-1">
-                    <span>⚡</span> Canned:
-                  </span>
+              {isAdminUser && activeConv?.type === 'admin_vendor' && (
+                <div className="px-3 py-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                  <span className="text-xs font-medium text-slate-500 shrink-0">Quick replies:</span>
                   {[
-                    { label: '✅ Listing Approved', text: 'Hello, your profile verification and portfolio showcase have been approved by Creative Hub platform administration.' },
-                    { label: '📄 Request KYC', text: 'Please provide your government-issued ID and recent production invoice or lookbook for listing verification.' },
-                    { label: '💳 Deposit Confirmed', text: 'We have verified your security deposit. Your profile is now actively visible to clients in the marketplace.' },
-                    { label: '⚖️ Dispute Reviewing', text: 'Platform administration is currently reviewing the client shoot timeline and dispute claim. We will issue a determination shortly.' },
-                  ].map((canned, idx) => (
+                    { label: 'Listing approved', text: 'Hello, your profile verification and portfolio showcase have been approved by Creative Hub platform administration.' },
+                    { label: 'Request KYC', text: 'Please provide your government-issued ID and recent production invoice or lookbook for listing verification.' },
+                    { label: 'Deposit confirmed', text: 'We have verified your security deposit. Your profile is now actively visible to clients in the marketplace.' },
+                    { label: 'Reviewing dispute', text: 'Platform administration is currently reviewing the client shoot timeline and dispute claim. We will issue a determination shortly.' },
+                  ].map((canned) => (
                     <button
-                      key={idx}
+                      key={canned.label}
                       type="button"
                       onClick={() => setMessageText(canned.text)}
-                      className="shrink-0 px-2.5 py-1 bg-white hover:bg-purple-100 text-purple-900 font-medium rounded-lg border border-purple-200 transition-colors shadow-2xs cursor-pointer hover:border-purple-300"
+                      className="shrink-0 px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer"
                     >
                       {canned.label}
                     </button>
@@ -861,95 +757,100 @@ export default function ChatModal({
                 </div>
               )}
 
-              {/* Message Composer Input Form */}
-              <form
-                onSubmit={handleSendMessage}
-                className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
-              >
-                {/* Hidden File Input */}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      setSelectedFile(e.target.files[0]);
-                    }
-                  }}
-                  className="hidden"
-                />
+              <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-200 bg-white">
+                {selectedFile && (
+                  <div className="mb-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2 text-sm">
+                    <Paperclip className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="font-medium text-slate-800 truncate">{selectedFile.name}</span>
+                    <span className="text-xs text-slate-500 shrink-0">{(selectedFile.size / (1024 * 1024)).toFixed(1)} MB</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="ml-auto p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
+                      aria-label="Remove attachment"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
 
-                {/* Attach File Button */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Attach File (Image, Video, Script, PDF)"
-                  className="h-9 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer shrink-0 flex items-center gap-1"
-                >
-                  <span>+</span>
-                  <span>File</span>
-                </button>
-
-                {/* Text Input */}
-                <input
-                  type="text"
-                  placeholder="Type a message or shoot question..."
-                  value={messageText}
-                  onChange={handleTypingChange}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
-                />
-
-                {/* Send Button */}
-                <button
-                  type="submit"
-                  disabled={(!messageText.trim() && !selectedFile) || uploading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
-                >
-                  {uploading ? (
-                    <span>Sending...</span>
-                  ) : (
-                    <span>Send &rarr;</span>
-                  )}
-                </button>
+                <div className="flex items-end gap-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) setSelectedFile(e.target.files[0]);
+                    }}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach a file"
+                    className="w-10 h-10 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 flex items-center justify-center shrink-0 cursor-pointer"
+                  >
+                    <Paperclip className="w-5 h-5" />
+                  </button>
+                  <textarea
+                    rows={1}
+                    placeholder="Write a message…"
+                    value={messageText}
+                    onChange={(e) => {
+                      handleTypingChange(e);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                        e.target.style.height = 'auto';
+                      }
+                    }}
+                    className="flex-1 resize-none max-h-32 bg-slate-100 border border-transparent rounded-lg px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={(!messageText.trim() && !selectedFile) || uploading}
+                    title="Send"
+                    className="w-10 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white flex items-center justify-center shrink-0 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                  >
+                    {uploading ? (
+                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                <p className="hidden sm:block text-[11px] text-slate-400 mt-1.5 pl-12">Press Enter to send · Shift + Enter for a new line</p>
               </form>
             </>
           ) : (
-            <div className="flex-1 flex flex-col bg-slate-50/50">
-              {/* Thread Header for Empty State with Close Option */}
-              <div className="p-3.5 border-b border-slate-200 flex items-center justify-between bg-white shadow-2xs">
-                <span className="text-xs font-semibold text-slate-500">Project Conversation</span>
+            <div className="flex-1 flex flex-col">
+              <div className="px-4 py-3 border-b border-slate-200 flex justify-end">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-sm transition-colors cursor-pointer"
-                  title="Close messages and return to dashboard"
+                  className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
+                  aria-label="Close messages"
                 >
-                  ✕
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-
-              <div className="flex-1 flex items-center justify-center p-8 text-center">
-                <div className="max-w-sm space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center text-xs font-bold mx-auto border border-slate-200 shadow-2xs">
-                    CHAT
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-800">Select a Conversation</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Choose a project chat on the left, or initiate a conversation directly from your bookings or creative profiles.
+              <div className="flex-1 flex items-center justify-center p-8 text-center bg-slate-50">
+                <div className="max-w-xs">
+                  <MessageSquare className="w-10 h-10 text-slate-300 mx-auto" />
+                  <h4 className="text-base font-semibold text-slate-800 mt-3">
+                    {conversations.length === 0 ? 'No conversations yet' : 'Pick a conversation'}
+                  </h4>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {conversations.length === 0
+                      ? 'Start a chat from any booking or creative profile using the Message button.'
+                      : 'Choose someone on the left to see your messages.'}
                   </p>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="mt-3 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer inline-flex items-center gap-1.5"
-                  >
-                    <span>&larr;</span>
-                    <span>Back to Dashboard</span>
-                  </button>
                 </div>
               </div>
             </div>

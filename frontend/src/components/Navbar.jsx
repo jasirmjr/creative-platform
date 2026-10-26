@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, LogOut } from 'lucide-react';
+import { Search, LogOut, ShoppingCart, MessageSquare } from 'lucide-react';
 
 export default function Navbar({
   user,
@@ -16,6 +16,8 @@ export default function Navbar({
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const isVendor = user?.role === 'vendor';
   const isCustomer = user?.role === 'customer';
+  // Dashboards have their own sidebar with messages, cart and search, so the header stays minimal there
+  const inDashboard = currentView === 'vendor_studio' || currentView === 'customer_projects';
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-md shadow-2xs">
@@ -23,23 +25,23 @@ export default function Navbar({
         {/* Brand Logo */}
         <div
           onClick={() => onNavigate?.('marketplace')}
-          className="flex items-center gap-3 cursor-pointer select-none shrink-0"
+          className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none min-w-0"
         >
           <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-base shadow-xs">
             C
           </div>
           <div>
-            <span className="text-base font-bold tracking-tight text-slate-900 block leading-tight font-heading">
+            <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900 block leading-tight font-heading whitespace-nowrap">
               CREATIVE <span className="text-blue-600">HUB</span>
             </span>
-            <span className="text-[10px] text-slate-500 block tracking-wider uppercase font-medium">
+            <span className="text-[10px] text-slate-500 hidden sm:block tracking-wider uppercase font-medium">
               Talent & Gear Managed Hub
             </span>
           </div>
         </div>
 
         {/* Minimal Search Bar */}
-        <div className="hidden md:flex items-center relative flex-1 max-w-xs lg:max-w-sm">
+        <div className={`${inDashboard ? 'hidden' : 'hidden md:flex'} items-center relative flex-1 max-w-xs lg:max-w-sm`}>
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
@@ -56,7 +58,7 @@ export default function Navbar({
               onClick={() => onNavigate?.('marketplace')}
               className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-blue-600 hover:bg-slate-50 rounded-xl border border-slate-200 transition-all cursor-pointer shadow-2xs"
             >
-              Explore Marketplace
+              Marketplace
             </button>
           )}
 
@@ -74,7 +76,7 @@ export default function Navbar({
               onClick={() => onNavigate?.(currentView === 'customer_projects' ? 'marketplace' : 'customer_projects')}
               className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-blue-600 hover:bg-slate-50 rounded-xl border border-slate-200 transition-all cursor-pointer shadow-2xs"
             >
-              {currentView === 'customer_projects' ? 'Explore Marketplace' : 'My Projects'}
+              {currentView === 'customer_projects' ? 'Marketplace' : 'My Dashboard'}
             </button>
           )}
 
@@ -96,13 +98,14 @@ export default function Navbar({
             </button>
           )}
 
-          {/* Show Messages only when not in studio dashboard */}
-          {user && currentView !== 'vendor_studio' && (
+          {/* Show Messages only outside dashboards (they have it in the sidebar) */}
+          {user && !inDashboard && (
             <button
               onClick={onOpenChat}
               className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
             >
-              <span>Messages</span>
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">Messages</span>
               {unreadChatCount > 0 && (
                 <span className="px-1.5 py-0.2 bg-blue-600 text-white rounded-full text-[10px] font-bold animate-pulse">
                   {unreadChatCount}
@@ -112,12 +115,12 @@ export default function Navbar({
           )}
 
           {/* Show Cart only when relevant */}
-          {(!isVendor || cartCount > 0) && currentView !== 'vendor_studio' && (
+          {(!isVendor || cartCount > 0) && !inDashboard && (
             <button
               onClick={onOpenCart}
               className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
             >
-              <span>🛒</span>
+              <ShoppingCart className="w-4 h-4" aria-label="Cart" />
               {cartCount > 0 && (
                 <span className="px-1.5 py-0.2 bg-blue-600 text-white rounded-full text-[10px] font-bold">
                   {cartCount}
