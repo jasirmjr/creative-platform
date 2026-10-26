@@ -2,34 +2,30 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
     "backend": {
-      "root": "backend",
-      "framework": "express"
+      "root": "backend"
     },
     "frontend": {
-      "root": "frontend",
-      "framework": "vite"
+      "root": "frontend"
     }
   },
-  "routing": {
-    "routes": [
-      {
-        "source": "/api/(.*)",
-        "destination": {
-          "service": "backend"
-        }
-      },
-      {
-        "source": "/uploads/(.*)",
-        "destination": {
-          "service": "backend"
-        }
-      },
-      {
-        "source": "/(.*)",
-        "destination": {
-          "service": "frontend"
-        }
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "backend"
       }
-    ]
-  }
+    },
+    {
+      "source": "/uploads/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    }
+  ]
 }
