@@ -1289,26 +1289,19 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
               </p>
             </div>
 
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto overflow-x-auto">
-              {[
-                { id: 'all', label: 'All Projects' },
-                { id: 'requests', label: 'Pending Requests' },
-                { id: 'confirmed', label: 'Confirmed' },
-                { id: 'completed', label: 'Completed' },
-                { id: 'cancelled', label: 'Cancelled' },
-              ].map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setBookingFilter(f.id)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                    bookingFilter === f.id
-                      ? 'bg-white text-blue-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
+            <div className="relative self-start sm:self-auto">
+              <select
+                value={bookingFilter}
+                onChange={(e) => setBookingFilter(e.target.value)}
+                className="appearance-none bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold rounded-xl pl-3.5 pr-9 py-2 shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all"
+              >
+                <option value="all">All Projects</option>
+                <option value="requests">Pending Requests</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
 
@@ -1340,12 +1333,12 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400 font-semibold bg-slate-50/40">
-                      <th className="py-3 px-4 font-semibold">Project</th>
-                      <th className="py-3 px-4 font-semibold">Client</th>
-                      <th className="py-3 px-4 font-semibold">Shoot Dates</th>
-                      <th className="py-3 px-4 font-semibold">Amount</th>
-                      <th className="py-3 px-4 font-semibold">Status</th>
-                      <th className="py-3 px-4 font-semibold text-right">Actions</th>
+                      <th className="py-3 px-4 font-semibold w-[28%] min-w-[180px]">Project</th>
+                      <th className="py-3 px-4 font-semibold w-[16%] min-w-[120px]">Client</th>
+                      <th className="py-3 px-4 font-semibold w-[16%] min-w-[120px]">Shoot Dates</th>
+                      <th className="py-3 px-4 font-semibold w-[16%] min-w-[120px]">Amount</th>
+                      <th className="py-3 px-4 font-semibold w-[10%] min-w-[100px]">Status</th>
+                      <th className="py-3 px-4 font-semibold text-right w-[14%] min-w-[130px]">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -1401,51 +1394,71 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                               </div>
                             </td>
 
-                            {/* 4. Financials (Minimal text, no backgrounds) */}
+                            {/* 4. Financials (Clean separated sub-fields) */}
                             <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                               <div className="font-semibold text-slate-900 font-mono text-xs">
                                 ₹{bTotal.toLocaleString()}
                               </div>
-                              <div className="text-[11px] text-slate-500 mt-0.5">
+                              <div className="text-[11px] mt-1 space-y-0.5">
                                 {b.payment_status === 'paid' || bBalance <= 0 ? (
-                                  <span className="text-emerald-600 font-medium">Fully Paid</span>
-                                ) : b.payment_status === 'advance_paid' || bPaid > 0 ? (
-                                  <span>₹{bPaid.toLocaleString()} paid &bull; ₹{bBalance.toLocaleString()} due</span>
+                                  <div className="text-emerald-600 font-medium">Paid: ₹{bTotal.toLocaleString()}</div>
                                 ) : (
-                                  <span>₹{Number(b.advance_amount || Math.round(bTotal * 0.3)).toLocaleString()} adv. req.</span>
+                                  <>
+                                    <div className="text-slate-500">
+                                      Paid: <span className="font-mono text-slate-700 font-medium">₹{bPaid.toLocaleString()}</span>
+                                    </div>
+                                    <div className="text-slate-500">
+                                      Due: <span className="font-mono font-medium text-amber-600">₹{bBalance.toLocaleString()}</span>
+                                    </div>
+                                  </>
                                 )}
                               </div>
                             </td>
 
-                            {/* 5. Status (Clean & Minimal text) */}
+                            {/* 5. Status (Minimal clean design) */}
                             <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                              <span
-                                className={`text-xs font-medium ${
-                                  b.status === 'confirmed'
-                                    ? 'text-emerald-600'
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    b.status === 'confirmed'
+                                      ? 'bg-emerald-500'
+                                      : b.status === 'completed'
+                                      ? 'bg-blue-500'
+                                      : b.status === 'deliverables_submitted'
+                                      ? 'bg-purple-500'
+                                      : b.status === 'approved' || b.status === 'under_review' || b.status === 'availability_check' || b.status === 'new_request'
+                                      ? 'bg-amber-500'
+                                      : 'bg-slate-400'
+                                  }`}
+                                />
+                                <span
+                                  className={`text-xs font-medium ${
+                                    b.status === 'confirmed'
+                                      ? 'text-emerald-700'
+                                      : b.status === 'deliverables_submitted'
+                                      ? 'text-purple-700'
+                                      : b.status === 'completed'
+                                      ? 'text-blue-700'
+                                      : b.status === 'approved'
+                                      ? 'text-amber-700'
+                                      : b.status === 'rejected' || b.status === 'cancelled'
+                                      ? 'text-rose-600'
+                                      : 'text-amber-700'
+                                  }`}
+                                >
+                                  {b.status === 'confirmed'
+                                    ? 'Confirmed'
                                     : b.status === 'deliverables_submitted'
-                                    ? 'text-purple-600'
+                                    ? 'Deliverables'
                                     : b.status === 'completed'
-                                    ? 'text-blue-600'
+                                    ? 'Completed'
                                     : b.status === 'approved'
-                                    ? 'text-amber-600'
+                                    ? 'Awaiting Adv.'
                                     : b.status === 'rejected' || b.status === 'cancelled'
-                                    ? 'text-rose-500'
-                                    : 'text-amber-600'
-                                }`}
-                              >
-                                {b.status === 'confirmed'
-                                  ? 'Confirmed'
-                                  : b.status === 'deliverables_submitted'
-                                  ? 'Deliverables Review'
-                                  : b.status === 'completed'
-                                  ? 'Completed'
-                                  : b.status === 'approved'
-                                  ? 'Awaiting Advance'
-                                  : b.status === 'rejected' || b.status === 'cancelled'
-                                  ? 'Declined'
-                                  : 'Under Review'}
-                              </span>
+                                    ? 'Declined'
+                                    : 'Under Review'}
+                                </span>
+                              </div>
 
                               {b.rejection_reason && (
                                 <div className="text-[10px] text-rose-500 italic mt-0.5 truncate max-w-[150px]" title={b.rejection_reason}>
@@ -1506,7 +1519,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                                     disabled={updatingBookingId === b.id}
                                     className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-all cursor-pointer disabled:opacity-50"
                                   >
-                                    Done
+                                    Completed
                                   </button>
                                 )}
 
