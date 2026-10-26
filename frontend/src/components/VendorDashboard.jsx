@@ -45,6 +45,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [bookingFilter, setBookingFilter] = useState('all');
   const [updatingBookingId, setUpdatingBookingId] = useState(null);
+  const [expandedBookingId, setExpandedBookingId] = useState(null);
 
   // Reviews State
   const [studioReviews, setStudioReviews] = useState([]);
@@ -1323,284 +1324,303 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {filteredBookings.map((b) => (
-                <div
-                  key={b.id}
-                  className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs hover:border-slate-300 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4"
-                >
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span
-                        className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded border ${
-                          b.status === 'confirmed'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : b.status === 'deliverables_submitted'
-                            ? 'bg-purple-50 text-purple-700 border-purple-200 font-bold'
-                            : b.status === 'completed'
-                            ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : b.status === 'rejected' || b.status === 'cancelled'
-                            ? 'bg-rose-50 text-rose-700 border-rose-200 font-black'
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}
-                      >
-                        {b.status === 'deliverables_submitted'
-                          ? 'Deliverables Under Review'
-                          : b.status === 'rejected'
-                          ? 'Declined / Rejected'
-                          : b.status.replace('_', ' ')}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-500">
-                        {b.category_name}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        • Received {new Date(b.created_at).toLocaleDateString()}
-                      </span>
-                      {b.crew_bundle_id && (
-                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full inline-flex items-center">
-                          Crew Production
-                        </span>
-                      )}
-                    </div>
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+              {/* Table Subheader Bar */}
+              <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-800">
+                    Client Bookings & Shoots
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                    Showing {filteredBookings.length} of {bookings.length}
+                  </span>
+                </div>
+              </div>
 
-                    <h3 className="text-base font-bold text-slate-900">{b.project_name || b.resource_title}</h3>
-
-                    {b.crew_bundle_id && (
-                      <div className="mt-2.5 p-3 bg-purple-50/70 border border-purple-200/90 rounded-xl text-xs flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-purple-900">
-                            Multi-Talent Project: <span className="font-bold">{b.crew_bundle_name || b.project_name || 'Production Crew'}</span>
-                          </span>
-                          <span className="text-purple-300">•</span>
-                          <span className="text-purple-800">
-                            Your Role: <strong className="font-bold text-purple-950">{b.crew_role || b.category_name}</strong>
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-mono text-purple-600 bg-white px-2 py-0.5 rounded border border-purple-200">
-                          {b.crew_bundle_id}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-slate-600 mt-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Customer Details</span>
-                        <strong className="text-slate-800">{b.customer_name || 'Creative Client'}</strong>
-                        {b.customer_mobile && <span className="block text-slate-500">{b.customer_mobile}</span>}
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Production Dates</span>
-                        <span className="font-semibold text-slate-800">
-                          {new Date(b.start_date).toLocaleDateString()} &rarr; {new Date(b.end_date).toLocaleDateString()}
-                        </span>
-                        {b.duration && <span className="block text-slate-500">Duration: {b.duration}</span>}
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Payment & Deposit</span>
-                        {(() => {
-                          const bTotal = Number(b.total_amount || 0);
-                          const bPaid = Number(b.paid_amount || 0);
-                          const bBalance = Math.max(0, bTotal - bPaid);
-                          return (
-                            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                              <span className="text-sm font-bold text-slate-900 font-mono">
-                                ₹{bTotal.toLocaleString()}
-                              </span>
-                              {b.payment_status === 'paid' || bBalance <= 0 ? (
-                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                  ✓ Paid
-                                </span>
-                              ) : b.payment_status === 'advance_paid' || bPaid > 0 ? (
-                                <>
-                                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                                    ✓ Advance (₹{bPaid.toLocaleString()})
-                                  </span>
-                                  <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-300">
-                                    ⚠️ Due: ₹{bBalance.toLocaleString()}
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                  Advance: ₹{Number(b.advance_amount || Math.round(bTotal * 0.3)).toLocaleString()}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* Rejection Note Display */}
-                    {b.rejection_reason && (
-                      <div className="mt-3 p-3 bg-rose-50/80 border border-rose-200 rounded-xl text-xs text-rose-950">
-                        <strong className="font-semibold text-rose-800 block text-[11px] uppercase tracking-wider mb-0.5">
-                          Decline Note Shared with Client & Admin:
-                        </strong>
-                        <p className="italic font-medium">"{b.rejection_reason}"</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100">
-                    {(b.status === 'under_review' || b.status === 'availability_check' || b.status === 'new_request') && (
-                      <>
-                        <button
-                          onClick={() => handleUpdateBookingStatus(b.id, 'approved')}
-                          disabled={updatingBookingId === b.id}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          <span>{updatingBookingId === b.id ? 'Accepting...' : 'Accept Booking'}</span>
-                        </button>
-                        <button
-                          onClick={() => setDeclineModal({ isOpen: true, booking: b })}
-                          disabled={updatingBookingId === b.id}
-                          className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
-                        >
-                          <span>Decline Request</span>
-                        </button>
-                      </>
-                    )}
-
-                    {b.status === 'approved' && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl font-medium flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                          <span>Awaiting Client Advance Deposit (₹{Number(b.advance_amount || Math.round(Number(b.total_amount) * 0.3)).toLocaleString()})</span>
-                        </span>
-                        <button
-                          onClick={() => handleUpdateBookingStatus(b.id, 'confirmed')}
-                          disabled={updatingBookingId === b.id}
-                          title="Manually confirm if advance was paid directly/offline"
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-xl border border-slate-200 transition-all cursor-pointer"
-                        >
-                          Confirm Offline
-                        </button>
-                      </div>
-                    )}
-
-                    {(b.status === 'confirmed' || b.status === 'deliverables_submitted' || b.status === 'completed') && (
-                      <button
-                        type="button"
-                        onClick={() => setDeliverablesModalBooking(b)}
-                        className={`px-3.5 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shadow-xs ${
-                          b.status === 'deliverables_submitted'
-                            ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300'
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent'
-                        }`}
-                        title="Manage Project Deliverables & Client Media Vault"
-                      >
-                        <span>📦</span>
-                        <span>{b.status === 'deliverables_submitted' ? 'Deliverables Under Review' : 'Media Vault'}</span>
-                      </button>
-                    )}
-
-                    {b.status === 'confirmed' && (
-                      <>
-                        <button
-                          onClick={() => handleUpdateBookingStatus(b.id, 'completed')}
-                          disabled={updatingBookingId === b.id}
-                          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                        >
-                          Mark as Completed
-                        </button>
-                        <button
-                          onClick={() => setDeclineModal({ isOpen: true, booking: b })}
-                          disabled={updatingBookingId === b.id}
-                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl border border-slate-200 transition-all cursor-pointer disabled:opacity-50"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    )}
-
-                    {b.status === 'deliverables_submitted' && (
-                      <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-200">
-                        Awaiting Client Sign-off
-                      </span>
-                    )}
-
-                    {b.status === 'completed' && (
-                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
-                        Production Completed
-                      </span>
-                    )}
-
-                    {/* Balance Payment Reminder Action for Vendor */}
-                    {(() => {
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/90 border-b border-slate-200 text-[10px] sm:text-[11px] uppercase tracking-wider text-slate-500 font-bold">
+                      <th className="py-3.5 px-4">Project & Role</th>
+                      <th className="py-3.5 px-4">Client Details</th>
+                      <th className="py-3.5 px-4">Shoot Dates</th>
+                      <th className="py-3.5 px-4">Budget & Payments</th>
+                      <th className="py-3.5 px-4">Production Status</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {filteredBookings.map((b) => {
+                      const isExpanded = expandedBookingId === b.id;
                       const bTotal = Number(b.total_amount || 0);
                       const bPaid = Number(b.paid_amount || 0);
                       const bBalance = Math.max(0, bTotal - bPaid);
                       const hasPendingBalance = bBalance > 0 && (b.status === 'completed' || b.status === 'deliverables_submitted' || b.status === 'confirmed');
                       const isRecentlyReminded = Boolean(b.last_balance_reminder_at || reminderStatusMap[b.id]?.sent);
 
-                      if (!hasPendingBalance) return null;
-
                       return (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleSendBalanceReminder(b)}
-                            disabled={remindingBookingId === b.id}
-                            className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shadow-xs ${
-                              isRecentlyReminded
-                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
-                                : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold border-transparent shadow-amber-500/20'
-                            }`}
-                            title={`Send balance payment reminder to ${b.customer_name || 'client'} for ₹${bBalance.toLocaleString()}`}
-                          >
-                            <span>🔔</span>
-                            <span>
-                              {remindingBookingId === b.id
-                                ? 'Sending Reminder...'
-                                : isRecentlyReminded
-                                ? `Reminded (₹${bBalance.toLocaleString()})`
-                                : `Remind Balance (₹${bBalance.toLocaleString()})`}
-                            </span>
-                          </button>
+                        <React.Fragment key={b.id}>
+                          <tr className={`transition-colors ${isExpanded ? 'bg-blue-50/30' : 'hover:bg-slate-50/70'}`}>
+                            {/* 1. Project & Role */}
+                            <td className="py-4 px-4 align-top">
+                              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                {b.crew_bundle_id ? (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-purple-100 text-purple-900 px-2 py-0.5 rounded-full border border-purple-200">
+                                    Crew Production
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-blue-50 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200">
+                                    Direct Booking
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                  {b.crew_role || b.category_name || 'Creator'}
+                                </span>
+                              </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleRemindBalanceInChat(b)}
-                            className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold rounded-xl transition-all cursor-pointer"
-                            title="Open chat with pre-filled balance reminder message"
-                          >
-                            <span>💬</span>
-                          </button>
-                        </div>
+                              <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                                {b.project_name || b.resource_title || 'Commercial Production Shoot'}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400">
+                                <span className="font-mono">#{b.id.slice(0, 8)}</span>
+                                <span>&bull;</span>
+                                <span>Received {new Date(b.created_at).toLocaleDateString()}</span>
+                              </div>
+
+                              {b.crew_bundle_id && (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedBookingId(isExpanded ? null : b.id)}
+                                  className="mt-1.5 text-[11px] text-purple-700 hover:text-purple-900 font-semibold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>{isExpanded ? 'Hide multi-talent info' : 'View multi-talent info'}</span>
+                                  <ChevronDown className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                </button>
+                              )}
+                            </td>
+
+                            {/* 2. Client Details */}
+                            <td className="py-4 px-4 align-top">
+                              <div className="font-bold text-slate-900">
+                                {b.customer_name || 'Creative Client'}
+                              </div>
+                              {b.customer_mobile && (
+                                <div className="text-slate-500 text-[11px] mt-0.5 flex items-center gap-1 font-mono">
+                                  <span>{b.customer_mobile}</span>
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => onOpenChat?.({ bookingId: b.id, customerId: b.customer_id })}
+                                className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                                <span>Chat</span>
+                              </button>
+                            </td>
+
+                            {/* 3. Shoot Dates */}
+                            <td className="py-4 px-4 align-top whitespace-nowrap">
+                              <div className="font-medium text-slate-800">
+                                {new Date(b.start_date).toLocaleDateString()} &rarr; {new Date(b.end_date).toLocaleDateString()}
+                              </div>
+                              {b.duration && (
+                                <span className="text-[10px] text-slate-500 block mt-0.5">
+                                  Duration: {b.duration}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* 4. Budget & Financials */}
+                            <td className="py-4 px-4 align-top">
+                              <div className="font-bold text-slate-900 font-mono text-sm">
+                                ₹{bTotal.toLocaleString()}
+                              </div>
+                              <div className="mt-1">
+                                {b.payment_status === 'paid' || bBalance <= 0 ? (
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 inline-block">
+                                    ✓ Full Paid
+                                  </span>
+                                ) : b.payment_status === 'advance_paid' || bPaid > 0 ? (
+                                  <div className="space-y-0.5">
+                                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 inline-block">
+                                      Adv: ₹{bPaid.toLocaleString()}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-300 block">
+                                      Due: ₹{bBalance.toLocaleString()}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-block">
+                                    Adv Req: ₹{Number(b.advance_amount || Math.round(bTotal * 0.3)).toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* 5. Production Status */}
+                            <td className="py-4 px-4 align-top">
+                              <span
+                                className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded border inline-block whitespace-nowrap ${
+                                  b.status === 'confirmed'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : b.status === 'deliverables_submitted'
+                                    ? 'bg-purple-50 text-purple-700 border-purple-200 font-bold'
+                                    : b.status === 'completed'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : b.status === 'rejected' || b.status === 'cancelled'
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200 font-black'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}
+                              >
+                                {b.status === 'deliverables_submitted'
+                                  ? 'Deliverables Submitted'
+                                  : b.status === 'rejected'
+                                  ? 'Declined'
+                                  : b.status.replace('_', ' ')}
+                              </span>
+
+                              {b.status === 'approved' && (
+                                <div className="mt-1 text-[10px] text-amber-800 font-medium">
+                                  Awaiting advance
+                                </div>
+                              )}
+
+                              {b.rejection_reason && (
+                                <div className="mt-1 text-[10px] text-rose-700 italic max-w-xs truncate" title={b.rejection_reason}>
+                                  "{b.rejection_reason}"
+                                </div>
+                              )}
+                            </td>
+
+                            {/* 6. Actions */}
+                            <td className="py-4 px-4 align-top text-right">
+                              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                {(b.status === 'under_review' || b.status === 'availability_check' || b.status === 'new_request') && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateBookingStatus(b.id, 'approved')}
+                                      disabled={updatingBookingId === b.id}
+                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-all shadow-xs cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                                    >
+                                      {updatingBookingId === b.id ? 'Accepting...' : 'Accept'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDeclineModal({ isOpen: true, booking: b })}
+                                      disabled={updatingBookingId === b.id}
+                                      className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-lg transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                                    >
+                                      Decline
+                                    </button>
+                                  </>
+                                )}
+
+                                {b.status === 'approved' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateBookingStatus(b.id, 'confirmed')}
+                                    disabled={updatingBookingId === b.id}
+                                    title="Manually confirm if advance was paid directly/offline"
+                                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-lg border border-slate-200 transition-all cursor-pointer whitespace-nowrap"
+                                  >
+                                    Confirm Offline
+                                  </button>
+                                )}
+
+                                {(b.status === 'confirmed' || b.status === 'deliverables_submitted' || b.status === 'completed') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeliverablesModalBooking(b)}
+                                    className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center gap-1 shadow-2xs whitespace-nowrap ${
+                                      b.status === 'deliverables_submitted'
+                                        ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300'
+                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent'
+                                    }`}
+                                    title="Manage Project Deliverables & Media Vault"
+                                  >
+                                    <span>📦</span>
+                                    <span>Vault</span>
+                                  </button>
+                                )}
+
+                                {b.status === 'confirmed' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateBookingStatus(b.id, 'completed')}
+                                    disabled={updatingBookingId === b.id}
+                                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all shadow-xs cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                                  >
+                                    Done
+                                  </button>
+                                )}
+
+                                {hasPendingBalance && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendBalanceReminder(b)}
+                                    disabled={remindingBookingId === b.id}
+                                    className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                                      isRecentlyReminded
+                                        ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                                        : 'bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold border-transparent'
+                                    }`}
+                                    title={`Send balance reminder for ₹${bBalance.toLocaleString()}`}
+                                  >
+                                    <span>🔔</span>
+                                    <span>Remind</span>
+                                  </button>
+                                )}
+
+                                {Number(b.paid_amount || 0) > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setReceiptModalBooking(b)}
+                                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap"
+                                    title="View client payment slip and escrow status"
+                                  >
+                                    Slip
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* Expandable Multi-Talent Breakdown Row */}
+                          {isExpanded && b.crew_bundle_id && (
+                            <tr className="bg-purple-50/40 border-b border-purple-100">
+                              <td colSpan={6} className="p-4">
+                                <div className="p-3 bg-white border border-purple-200 rounded-xl text-xs space-y-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-purple-900">
+                                        Multi-Talent Project: {b.crew_bundle_name || b.project_name || 'Production Crew'}
+                                      </span>
+                                      <span className="text-purple-400">&bull;</span>
+                                      <span className="text-purple-800">
+                                        Your Assigned Role: <strong className="text-purple-950">{b.crew_role || b.category_name}</strong>
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                      Bundle #{b.crew_bundle_id}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500">
+                                    This project is part of a multi-specialist crew hired simultaneously by {b.customer_name || 'the client'}. Each crew specialist manages their individual deliverables and payouts.
+                                  </p>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
-                    })()}
-
-                    {(b.status === 'cancelled' || b.status === 'rejected') && (
-                      <span className="text-xs font-semibold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200">
-                        {b.status === 'rejected' ? 'Declined / Rejected' : 'Cancelled'}
-                      </span>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => onOpenChat?.({ bookingId: b.id, customerId: b.customer_id })}
-                      className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                      title="Chat directly with client about this booking"
-                    >
-                      <span>Chat with Client</span>
-                    </button>
-
-                    {Number(b.paid_amount || 0) > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setReceiptModalBooking(b)}
-                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs whitespace-nowrap"
-                        title="View client payment slip and escrow status"
-                      >
-                        Payment Slip
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
