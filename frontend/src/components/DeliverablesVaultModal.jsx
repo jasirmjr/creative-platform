@@ -45,7 +45,7 @@ export default function DeliverablesVaultModal({
     if (!bookingId || !token) return;
     setLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/${bookingId}/deliverables`, {
+      const res = await fetch(`/api/v1/bookings/${bookingId}/deliverables`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -121,7 +121,7 @@ export default function DeliverablesVaultModal({
         formData.append('file', selectedFile);
       }
 
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/${bookingId}/deliverables`, {
+      const res = await fetch(`/api/v1/bookings/${bookingId}/deliverables`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -157,7 +157,7 @@ export default function DeliverablesVaultModal({
     setIsSubmittingReview(true);
     try {
       const res = await fetch(
-        `http://127.0.0.1:5000/api/v1/bookings/${bookingId}/deliverables/${deliverableId}/review`,
+        `/api/v1/bookings/${bookingId}/deliverables/${deliverableId}/review`,
         {
           method: 'POST',
           headers: {
@@ -218,7 +218,7 @@ export default function DeliverablesVaultModal({
     setSubmittingReply(true);
     try {
       const res = await fetch(
-        `http://127.0.0.1:5000/api/v1/bookings/${bookingId}/deliverables/${deliverableId}/vendor-reply`,
+        `/api/v1/bookings/${bookingId}/deliverables/${deliverableId}/vendor-reply`,
         {
           method: 'POST',
           headers: {
@@ -623,7 +623,7 @@ export default function DeliverablesVaultModal({
                             href={
                               item.file_url.startsWith('http')
                                 ? item.file_url
-                                : `http://127.0.0.1:5000${item.file_url}`
+                                : `${item.file_url}`
                             }
                             target="_blank"
                             rel="noopener noreferrer"

@@ -62,7 +62,7 @@ export default function Dashboard({
   const fetchVendors = async () => {
     setLoadingVendors(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/list?status=verified');
+      const res = await fetch('/api/v1/vendors/list?status=verified');
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         // Only list active ventures (non-deleted, available, and deposit paid/waived)
@@ -81,7 +81,7 @@ export default function Dashboard({
   // Load Categories
   const fetchCategories = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/categories');
+      const res = await fetch('/api/v1/categories');
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setCategoriesList(data.data);
@@ -115,7 +115,7 @@ export default function Dashboard({
     async function loadUserBookings() {
       if (!token) return;
       try {
-        const res = await fetch('http://127.0.0.1:5000/api/v1/bookings/my', {
+        const res = await fetch('/api/v1/bookings/my', {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();

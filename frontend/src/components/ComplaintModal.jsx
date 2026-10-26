@@ -44,7 +44,7 @@ export default function ComplaintModal({
     const checkExisting = async () => {
       setLoadingExisting(true);
       try {
-        const res = await fetch('http://127.0.0.1:5000/api/v1/complaints/my', {
+        const res = await fetch('/api/v1/complaints/my', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -53,7 +53,7 @@ export default function ComplaintModal({
           if (match) {
             setExistingComplaint(match);
             // Load full timeline
-            const tRes = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${match.id}/timeline`, {
+            const tRes = await fetch(`/api/v1/complaints/${match.id}/timeline`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             const tData = await tRes.json();
@@ -146,7 +146,7 @@ export default function ComplaintModal({
         formData.append('attachment', proofFile);
       }
 
-      const res = await fetch('http://127.0.0.1:5000/api/v1/complaints', {
+      const res = await fetch('/api/v1/complaints', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -171,14 +171,14 @@ export default function ComplaintModal({
     if (!existingComplaint || acceptingOffer) return;
     setAcceptingOffer(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${existingComplaint.id}/accept-vendor-offer`, {
+      const res = await fetch(`/api/v1/complaints/${existingComplaint.id}/accept-vendor-offer`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.success) {
         setExistingComplaint(data.data);
-        const tRes = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${existingComplaint.id}/timeline`, {
+        const tRes = await fetch(`/api/v1/complaints/${existingComplaint.id}/timeline`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const tData = await tRes.json();
@@ -204,7 +204,7 @@ export default function ComplaintModal({
 
     setEscalatingAdmin(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${existingComplaint.id}/escalate`, {
+      const res = await fetch(`/api/v1/complaints/${existingComplaint.id}/escalate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -214,7 +214,7 @@ export default function ComplaintModal({
       });
       const data = await res.json();
       if (data.success) {
-        const tRes = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${existingComplaint.id}/timeline`, {
+        const tRes = await fetch(`/api/v1/complaints/${existingComplaint.id}/timeline`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const tData = await tRes.json();
@@ -238,7 +238,7 @@ export default function ComplaintModal({
 
     setSendingReply(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${existingComplaint.id}/replies`, {
+      const res = await fetch(`/api/v1/complaints/${existingComplaint.id}/replies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -588,7 +588,7 @@ export default function ComplaintModal({
                   </p>
                   {existingComplaint.vendor_attachment_url && (
                     <a
-                      href={`http://127.0.0.1:5000${existingComplaint.vendor_attachment_url}`}
+                      href={`${existingComplaint.vendor_attachment_url}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 mt-2 text-[11px] text-purple-700 font-bold hover:underline"
@@ -632,7 +632,7 @@ export default function ComplaintModal({
                     <>
                       <span>&bull;</span>
                       <a
-                        href={`http://127.0.0.1:5000${existingComplaint.attachment_url}`}
+                        href={`${existingComplaint.attachment_url}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 font-bold hover:underline"

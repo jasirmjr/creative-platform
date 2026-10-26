@@ -90,7 +90,7 @@ export default function ChatModal({
     if (!token) return;
     try {
       const typeQuery = scope === 'client' ? '?type=client' : scope === 'admin' ? '?type=admin_vendor' : '';
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/chat/conversations${typeQuery}`, {
+      const res = await fetch(`/api/v1/chat/conversations${typeQuery}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -117,7 +117,7 @@ export default function ChatModal({
       if (!token || !convId) return;
       setLoadingMessages(true);
       try {
-        const res = await fetch(`http://127.0.0.1:5000/api/v1/chat/conversations/${convId}/messages`, {
+        const res = await fetch(`/api/v1/chat/conversations/${convId}/messages`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -156,7 +156,7 @@ export default function ChatModal({
             type: initialType || (user?.role === 'admin' || user?.role === 'super_admin' ? 'admin_vendor' : undefined),
           };
 
-          const res = await fetch('http://127.0.0.1:5000/api/v1/chat/conversations', {
+          const res = await fetch('/api/v1/chat/conversations', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -230,7 +230,7 @@ export default function ChatModal({
 
         // Mark as read immediately if current user is active in this conversation
         if (newMsg.sender_id !== user?.id) {
-          fetch(`http://127.0.0.1:5000/api/v1/chat/conversations/${activeConvId}/read`, {
+          fetch(`/api/v1/chat/conversations/${activeConvId}/read`, {
             method: 'PATCH',
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -337,7 +337,7 @@ export default function ChatModal({
           formData.append('message', messageText.trim());
         }
 
-        res = await fetch(`http://127.0.0.1:5000/api/v1/chat/conversations/${activeConvId}/messages`, {
+        res = await fetch(`/api/v1/chat/conversations/${activeConvId}/messages`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -346,7 +346,7 @@ export default function ChatModal({
         });
       } else {
         // Send as clean JSON
-        res = await fetch(`http://127.0.0.1:5000/api/v1/chat/conversations/${activeConvId}/messages`, {
+        res = await fetch(`/api/v1/chat/conversations/${activeConvId}/messages`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -734,13 +734,13 @@ export default function ChatModal({
                             <div className={`mt-2 ${m.message ? 'pt-2 border-t border-white/20' : ''}`}>
                               {m.file_type === 'image' ? (
                                 <a
-                                  href={`http://127.0.0.1:5000${m.file_url}`}
+                                  href={`${m.file_url}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="block rounded-xl overflow-hidden group relative"
                                 >
                                   <img
-                                    src={`http://127.0.0.1:5000${m.file_url}`}
+                                    src={`${m.file_url}`}
                                     alt={m.file_name || 'Attached Image'}
                                     className="max-h-56 w-auto object-cover rounded-xl border border-black/10 group-hover:opacity-95 transition-opacity"
                                   />
@@ -750,13 +750,13 @@ export default function ChatModal({
                                 </a>
                               ) : m.file_type === 'video' ? (
                                 <video
-                                  src={`http://127.0.0.1:5000${m.file_url}`}
+                                  src={`${m.file_url}`}
                                   controls
                                   className="max-h-56 w-full rounded-xl"
                                 />
                               ) : (
                                 <a
-                                  href={`http://127.0.0.1:5000${m.file_url}`}
+                                  href={`${m.file_url}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   download

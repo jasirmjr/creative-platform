@@ -110,7 +110,7 @@ export default function PortfolioMediaViewer({
 
   // Normalize /uploads to absolute backend origin if needed
   const finalUrl = mediaUrl?.startsWith('/uploads')
-    ? `http://127.0.0.1:5000${mediaUrl}`
+    ? `${mediaUrl}`
     : mediaUrl;
 
   const parsed = parseMediaUrl(finalUrl, mediaType);
@@ -123,7 +123,7 @@ export default function PortfolioMediaViewer({
 
     if (parsed.type === 'instagram' && parsed.originalUrl) {
       let isMounted = true;
-      fetch(`http://127.0.0.1:5000/api/v1/portfolios/media-preview?url=${encodeURIComponent(parsed.originalUrl)}`)
+      fetch(`/api/v1/portfolios/media-preview?url=${encodeURIComponent(parsed.originalUrl)}`)
         .then((res) => res.json())
         .then((json) => {
           if (isMounted && json?.success && json?.data?.thumbnailUrl) {
@@ -153,7 +153,7 @@ export default function PortfolioMediaViewer({
     if (url.includes('127.0.0.1:5000') || url.includes('localhost:5000') || url.startsWith('/')) {
       return url;
     }
-    return `http://127.0.0.1:5000/api/v1/portfolios/proxy-media?url=${encodeURIComponent(url)}`;
+    return `/api/v1/portfolios/proxy-media?url=${encodeURIComponent(url)}`;
   };
 
   // === 1. INSTAGRAM REEL / POST (Clean Preview Card, Actual Cover Pic) ===

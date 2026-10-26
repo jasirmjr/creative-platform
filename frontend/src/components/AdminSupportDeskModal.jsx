@@ -29,7 +29,7 @@ export default function AdminSupportDeskModal({
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/chat/conversations', {
+      const res = await fetch('/api/v1/chat/conversations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -55,7 +55,7 @@ export default function AdminSupportDeskModal({
   const fetchMessages = async (convId) => {
     if (!token || !convId) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/chat/conversations/${convId}/messages`, {
+      const res = await fetch(`/api/v1/chat/conversations/${convId}/messages`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -106,7 +106,7 @@ export default function AdminSupportDeskModal({
 
         // Mark as read if sent by admin
         if (newMsg.sender_role === 'admin') {
-          fetch(`http://127.0.0.1:5000/api/v1/chat/conversations/${conversation.id}/read`, {
+          fetch(`/api/v1/chat/conversations/${conversation.id}/read`, {
             method: 'PATCH',
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -183,13 +183,13 @@ export default function AdminSupportDeskModal({
         formData.append('file', selectedFile);
         if (finalMessage) formData.append('message', finalMessage);
 
-        res = await fetch(`http://127.0.0.1:5000/api/v1/chat/conversations/${conversation.id}/messages`, {
+        res = await fetch(`/api/v1/chat/conversations/${conversation.id}/messages`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
         });
       } else {
-        res = await fetch(`http://127.0.0.1:5000/api/v1/chat/conversations/${conversation.id}/messages`, {
+        res = await fetch(`/api/v1/chat/conversations/${conversation.id}/messages`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -358,13 +358,13 @@ export default function AdminSupportDeskModal({
                       <div className={`mt-2 ${m.message ? 'pt-2 border-t border-slate-200/50' : ''}`}>
                         {m.file_type === 'image' ? (
                           <a
-                            href={`http://127.0.0.1:5000${m.file_url}`}
+                            href={`${m.file_url}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block rounded-xl overflow-hidden group relative"
                           >
                             <img
-                              src={`http://127.0.0.1:5000${m.file_url}`}
+                              src={`${m.file_url}`}
                               alt={m.file_name || 'Attached Image'}
                               className="max-h-56 w-auto object-cover rounded-xl border border-black/10 group-hover:opacity-95 transition-opacity"
                             />
@@ -374,13 +374,13 @@ export default function AdminSupportDeskModal({
                           </a>
                         ) : m.file_type === 'video' ? (
                           <video
-                            src={`http://127.0.0.1:5000${m.file_url}`}
+                            src={`${m.file_url}`}
                             controls
                             className="max-h-56 w-full rounded-xl"
                           />
                         ) : (
                           <a
-                            href={`http://127.0.0.1:5000${m.file_url}`}
+                            href={`${m.file_url}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             download

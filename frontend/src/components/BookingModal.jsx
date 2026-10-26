@@ -25,7 +25,7 @@ export default function BookingModal({ item, isOpen, onClose, onSuccess, token, 
 
     async function loadAvailability() {
       try {
-        const res = await fetch(`http://127.0.0.1:5000/api/v1/schedule/vendor/${vendorId}`);
+        const res = await fetch(`/api/v1/schedule/vendor/${vendorId}`);
         const data = await res.json();
         if (data.success) {
           setBlockedRanges(data.all_blocked_ranges || []);
@@ -67,7 +67,7 @@ export default function BookingModal({ item, isOpen, onClose, onSuccess, token, 
     setSubmitting(true);
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/bookings', {
+      const res = await fetch('/api/v1/bookings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

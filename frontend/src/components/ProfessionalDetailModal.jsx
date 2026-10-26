@@ -39,7 +39,7 @@ export default function ProfessionalDetailModal({
     async function loadPortfolio() {
       setLoadingPortfolio(true);
       try {
-        const res = await fetch(`http://127.0.0.1:5000/api/v1/portfolios/vendor/${vendorId}`);
+        const res = await fetch(`/api/v1/portfolios/vendor/${vendorId}`);
         const data = await res.json();
         if (data.success) {
           setPortfolio(data.data || []);
@@ -53,7 +53,7 @@ export default function ProfessionalDetailModal({
 
     async function loadReviews() {
       try {
-        const res = await fetch(`http://127.0.0.1:5000/api/v1/reviews/vendor/${vendorId}`);
+        const res = await fetch(`/api/v1/reviews/vendor/${vendorId}`);
         const data = await res.json();
         if (data.success) {
           setReviews(data.data || []);
@@ -67,7 +67,7 @@ export default function ProfessionalDetailModal({
 
     async function loadAvailability() {
       try {
-        const res = await fetch(`http://127.0.0.1:5000/api/v1/schedule/vendor/${vendorId}`);
+        const res = await fetch(`/api/v1/schedule/vendor/${vendorId}`);
         const data = await res.json();
         if (data.success) {
           setBlockedRanges(data.all_blocked_ranges || []);

@@ -31,7 +31,7 @@ export default function ReviewModal({
     setSubmitting(true);
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/reviews', {
+      const res = await fetch('/api/v1/reviews', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

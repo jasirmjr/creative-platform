@@ -57,7 +57,7 @@ export default function AuthModal({
   // Fetch active categories configured by Admin
   useEffect(() => {
     if (isOpen) {
-      fetch('http://127.0.0.1:5000/api/v1/categories')
+      fetch('/api/v1/categories')
         .then((res) => res.json())
         .then((data) => {
           if (data.success && Array.isArray(data.data)) {
@@ -249,7 +249,7 @@ export default function AuthModal({
     setLoading(true);
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/auth/send-otp', {
+      const res = await fetch('/api/v1/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -308,7 +308,7 @@ export default function AuthModal({
         }),
       };
 
-      const res = await fetch('http://127.0.0.1:5000/api/v1/auth/verify-otp', {
+      const res = await fetch('/api/v1/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -338,7 +338,7 @@ export default function AuthModal({
     setLoading(true);
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/auth/send-otp', {
+      const res = await fetch('/api/v1/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mobile }),
@@ -364,7 +364,7 @@ export default function AuthModal({
     setLoading(true);
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/auth/common-login', {
+      const res = await fetch('/api/v1/auth/common-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -391,7 +391,7 @@ export default function AuthModal({
     setLoading(true);
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/auth/admin-login', {
+      const res = await fetch('/api/v1/auth/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

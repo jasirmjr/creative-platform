@@ -66,7 +66,7 @@ export default function CustomerDashboard({
   const fetchCustomerComplaints = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/complaints/my', {
+      const res = await fetch('/api/v1/complaints/my', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -83,7 +83,7 @@ export default function CustomerDashboard({
     if (!token) return;
     setLoadingBookings(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/bookings/my', {
+      const res = await fetch('/api/v1/bookings/my', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -105,7 +105,7 @@ export default function CustomerDashboard({
   const fetchApprovedVendors = async () => {
     setLoadingVendors(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/list?status=verified');
+      const res = await fetch('/api/v1/vendors/list?status=verified');
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         const activeOnly = data.data.filter(
@@ -124,7 +124,7 @@ export default function CustomerDashboard({
   const fetchMyReviews = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/reviews/my', {
+      const res = await fetch('/api/v1/reviews/my', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -166,7 +166,7 @@ export default function CustomerDashboard({
     setNotification(null);
 
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/${bookingId}/pay`, {
+      const res = await fetch(`/api/v1/bookings/${bookingId}/pay`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -205,7 +205,7 @@ export default function CustomerDashboard({
     if (!window.confirm('Confirm that the creative partner has completed the shoot and delivered the work?')) return;
     setUpdatingStatusId(bookingId);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/${bookingId}/status`, {
+      const res = await fetch(`/api/v1/bookings/${bookingId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -237,7 +237,7 @@ export default function CustomerDashboard({
 
     try {
       // 1. Create official Razorpay order on server
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/crew-bundle/${bundleId}/create-razorpay-order`, {
+      const res = await fetch(`/api/v1/bookings/crew-bundle/${bundleId}/create-razorpay-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -274,7 +274,7 @@ export default function CustomerDashboard({
         handler: async function (response) {
           try {
             setPayingId(bundleId);
-            const verifyRes = await fetch(`http://127.0.0.1:5000/api/v1/bookings/crew-bundle/${bundleId}/verify-razorpay-payment`, {
+            const verifyRes = await fetch(`/api/v1/bookings/crew-bundle/${bundleId}/verify-razorpay-payment`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

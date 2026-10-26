@@ -53,33 +53,33 @@ export default function AdminPanel({ user, token: propToken, onBackToMarketplace
     setLoading(true);
     try {
       // 1. Fetch Bookings
-      const bookingsRes = await fetch('http://127.0.0.1:5000/api/v1/bookings/all', {
+      const bookingsRes = await fetch('/api/v1/bookings/all', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const bookingsData = await bookingsRes.json();
       if (bookingsData.success) setBookings(bookingsData.data);
 
       // 2. Fetch Vendors (include all for admin management, including unpaid)
-      const vendorsRes = await fetch('http://127.0.0.1:5000/api/v1/vendors/list?include_deleted=true&include_unavailable=true&include_unpaid=true');
+      const vendorsRes = await fetch('/api/v1/vendors/list?include_deleted=true&include_unavailable=true&include_unpaid=true');
       const vendorsData = await vendorsRes.json();
       if (vendorsData.success) setVendors(vendorsData.data);
 
       // 3. Fetch All Users
-      const usersRes = await fetch('http://127.0.0.1:5000/api/v1/auth/users', {
+      const usersRes = await fetch('/api/v1/auth/users', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const usersData = await usersRes.json();
       if (usersData.success) setUsersList(usersData.data);
 
       // 4. Fetch All Complaints & Disputes
-      const complaintsRes = await fetch('http://127.0.0.1:5000/api/v1/complaints/all', {
+      const complaintsRes = await fetch('/api/v1/complaints/all', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const complaintsData = await complaintsRes.json();
       if (complaintsData.success) setComplaintsList(complaintsData.data);
 
       // 5. Fetch Creative Disciplines & Pricing Guardrails
-      const catRes = await fetch('http://127.0.0.1:5000/api/v1/categories');
+      const catRes = await fetch('/api/v1/categories');
       const catData = await catRes.json();
       if (catData.success) setCategoriesList(catData.data);
     } catch (err) {
@@ -111,7 +111,7 @@ export default function AdminPanel({ user, token: propToken, onBackToMarketplace
 
     setSavingCategory(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/categories/${editingCategory.id}/pricing`, {
+      const res = await fetch(`/api/v1/categories/${editingCategory.id}/pricing`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -163,7 +163,7 @@ export default function AdminPanel({ user, token: propToken, onBackToMarketplace
 
     setAddingCategory(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/categories', {
+      const res = await fetch('/api/v1/categories', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -206,7 +206,7 @@ export default function AdminPanel({ user, token: propToken, onBackToMarketplace
   const handleDeleteCategory = async (catId) => {
     setIsDeletingCategory(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/categories/${catId}`, {
+      const res = await fetch(`/api/v1/categories/${catId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -233,7 +233,7 @@ export default function AdminPanel({ user, token: propToken, onBackToMarketplace
 
   const handleUpdateVendorStatus = async (vendorId, status) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/vendors/${vendorId}/status`, {
+      const res = await fetch(`/api/v1/vendors/${vendorId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -256,7 +256,7 @@ export default function AdminPanel({ user, token: propToken, onBackToMarketplace
 
   const handleUpdateDepositStatus = async (vendorId, deposit_status) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/vendors/${vendorId}/deposit-status`, {
+      const res = await fetch(`/api/v1/vendors/${vendorId}/deposit-status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -280,7 +280,7 @@ export default function AdminPanel({ user, token: propToken, onBackToMarketplace
   const handleDeleteUser = async (userId) => {
     setIsDeleting(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/auth/users/${userId}`, {
+      const res = await fetch(`/api/v1/auth/users/${userId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -306,7 +306,7 @@ export default function AdminPanel({ user, token: propToken, onBackToMarketplace
   const handleRestoreUser = async (userId) => {
     setIsDeleting(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/auth/users/${userId}/restore`, {
+      const res = await fetch(`/api/v1/auth/users/${userId}/restore`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,

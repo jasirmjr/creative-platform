@@ -23,3 +23,5 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Keep event loop active
 setInterval(() => {}, 60000);
+
+module.exports = app;

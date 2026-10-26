@@ -69,7 +69,7 @@ export default function PaymentModal({
 
     try {
       const res = await fetch(
-        `http://127.0.0.1:5000/api/v1/bookings/${booking.id}/create-razorpay-order`,
+        `/api/v1/bookings/${booking.id}/create-razorpay-order`,
         {
           method: 'POST',
           headers: {
@@ -146,7 +146,7 @@ export default function PaymentModal({
 
     try {
       const res = await fetch(
-        `http://127.0.0.1:5000/api/v1/bookings/${booking.id}/verify-razorpay-payment`,
+        `/api/v1/bookings/${booking.id}/verify-razorpay-payment`,
         {
           method: 'POST',
           headers: {

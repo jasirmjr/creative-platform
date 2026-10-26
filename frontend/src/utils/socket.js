@@ -24,7 +24,11 @@ export function getSocket(token) {
   }
 
   // Create new socket connection
-  socket = io('http://127.0.0.1:5000', {
+  const socketUrl = (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')
+    ? window.location.origin
+    : 'http://127.0.0.1:5000';
+
+  socket = io(socketUrl, {
     auth: { token },
     transports: ['websocket', 'polling'],
     reconnection: true,

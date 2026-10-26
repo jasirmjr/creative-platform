@@ -46,7 +46,7 @@ export default function ReceiptModal({
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/payments/booking/${bId}`, {
+      const res = await fetch(`/api/v1/payments/booking/${bId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -75,7 +75,7 @@ export default function ReceiptModal({
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/payments/${id}/receipt`, {
+      const res = await fetch(`/api/v1/payments/${id}/receipt`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -93,7 +93,7 @@ export default function ReceiptModal({
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/payments/vendor/${vId}/deposit`, {
+      const res = await fetch(`/api/v1/payments/vendor/${vId}/deposit`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();

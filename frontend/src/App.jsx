@@ -133,7 +133,7 @@ export default function App() {
 
   const fetchPendingVendorsCount = useCallback(async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/list?include_unavailable=true');
+      const res = await fetch('/api/v1/vendors/list?include_unavailable=true');
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         const count = data.data.filter((v) => v.verification_status === 'pending').length;
@@ -214,7 +214,7 @@ export default function App() {
       return;
     }
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/chat/unread-count', {
+      const res = await fetch('/api/v1/chat/unread-count', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();

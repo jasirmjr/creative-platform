@@ -47,7 +47,7 @@ export default function CartModal({
 
     vendorIds.forEach(async (vId) => {
       try {
-        const res = await fetch(`http://127.0.0.1:5000/api/v1/schedule/vendor/${vId}`);
+        const res = await fetch(`/api/v1/schedule/vendor/${vId}`);
         const data = await res.json();
         if (data.success) {
           setVendorAvailability((prev) => ({
@@ -150,7 +150,7 @@ export default function CartModal({
         };
       });
 
-      const res = await fetch('http://127.0.0.1:5000/api/v1/bookings/checkout-cart', {
+      const res = await fetch('/api/v1/bookings/checkout-cart', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

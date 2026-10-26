@@ -48,7 +48,7 @@ export default function VendorDepositModal({
     setError('');
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/deposit/create-order', {
+      const res = await fetch('/api/v1/vendors/deposit/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -117,7 +117,7 @@ export default function VendorDepositModal({
     setError('');
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/deposit/verify', {
+      const res = await fetch('/api/v1/vendors/deposit/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

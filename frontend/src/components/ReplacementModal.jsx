@@ -32,7 +32,7 @@ export default function ReplacementModal({
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/${booking.id}/replacement-candidates`, {
+      const res = await fetch(`/api/v1/bookings/${booking.id}/replacement-candidates`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -60,7 +60,7 @@ export default function ReplacementModal({
     setError('');
 
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/${booking.id}/replace-vendor`, {
+      const res = await fetch(`/api/v1/bookings/${booking.id}/replace-vendor`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -50,7 +50,7 @@ export default function AdminComplaintDeskModal({
     if (!complaintId || !token) return;
     setLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${complaintId}/timeline`, {
+      const res = await fetch(`/api/v1/complaints/${complaintId}/timeline`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -77,7 +77,7 @@ export default function AdminComplaintDeskModal({
 
     setSendingReply(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${complaintId}/replies`, {
+      const res = await fetch(`/api/v1/complaints/${complaintId}/replies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,7 +107,7 @@ export default function AdminComplaintDeskModal({
   const handleUpdateStatus = async (newStatus, notes = '') => {
     setUpdatingStatus(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${complaintId}/status`, {
+      const res = await fetch(`/api/v1/complaints/${complaintId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -143,7 +143,7 @@ export default function AdminComplaintDeskModal({
     }
     setRefundModal((prev) => ({ ...prev, processing: true }));
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${complaintId}/refund`, {
+      const res = await fetch(`/api/v1/complaints/${complaintId}/refund`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ export default function AdminComplaintDeskModal({
     }
     setStrikeModal((prev) => ({ ...prev, processing: true }));
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${complaintId}/strike`, {
+      const res = await fetch(`/api/v1/complaints/${complaintId}/strike`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -209,7 +209,7 @@ export default function AdminComplaintDeskModal({
   const handleRevokeStrike = async () => {
     if (!window.confirm('Are you sure you want to revoke 1 warning strike from this vendor?')) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${complaintId}/strike/revoke`, {
+      const res = await fetch(`/api/v1/complaints/${complaintId}/strike/revoke`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -243,7 +243,7 @@ export default function AdminComplaintDeskModal({
     }
     setSplitModal((prev) => ({ ...prev, processing: true }));
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${complaintId}/split-settlement`, {
+      const res = await fetch(`/api/v1/complaints/${complaintId}/split-settlement`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -506,7 +506,7 @@ export default function AdminComplaintDeskModal({
                     )}
                     {complaint.attachment_url && (
                       <a
-                        href={`http://127.0.0.1:5000${complaint.attachment_url}`}
+                        href={`${complaint.attachment_url}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 font-bold hover:underline flex items-center gap-1 mt-0.5"
@@ -568,7 +568,7 @@ export default function AdminComplaintDeskModal({
                       </p>
                       {complaint.vendor_attachment_url && (
                         <a
-                          href={`http://127.0.0.1:5000${complaint.vendor_attachment_url}`}
+                          href={`${complaint.vendor_attachment_url}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-purple-700 font-bold hover:underline block pt-2 text-[11px]"

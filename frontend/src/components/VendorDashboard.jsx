@@ -105,7 +105,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     if (!selectedDisputeModal || acceptingClientOffer) return;
     setAcceptingClientOffer(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${selectedDisputeModal.id}/accept-client-offer`, {
+      const res = await fetch(`/api/v1/complaints/${selectedDisputeModal.id}/accept-client-offer`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -132,7 +132,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     if (!selectedDisputeModal || submittingCounterOffer || !counterOfferDetails.trim()) return;
     setSubmittingCounterOffer(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${selectedDisputeModal.id}/counter-offer`, {
+      const res = await fetch(`/api/v1/complaints/${selectedDisputeModal.id}/counter-offer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -169,7 +169,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     if (!token) return;
     setLoadingComplaints(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/complaints/vendor', {
+      const res = await fetch('/api/v1/complaints/vendor', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -187,7 +187,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
   const fetchUnreadStats = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/chat/unread-count', {
+      const res = await fetch('/api/v1/chat/unread-count', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -204,7 +204,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
   const fetchProfile = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/profile', {
+      const res = await fetch('/api/v1/vendors/profile', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -236,7 +236,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
   // Load Platform Categories & Rate Guardrails
   const fetchCategories = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/categories');
+      const res = await fetch('/api/v1/categories');
       const data = await res.json();
       if (data.success) {
         setCategoriesList(data.data || []);
@@ -251,7 +251,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     if (!token) return;
     setLoadingPortfolio(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/portfolios/my', {
+      const res = await fetch('/api/v1/portfolios/my', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -270,7 +270,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     if (!token) return;
     setLoadingBookings(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/bookings/vendor', {
+      const res = await fetch('/api/v1/bookings/vendor', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -289,7 +289,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     if (!token) return;
     setLoadingReviews(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/reviews/studio', {
+      const res = await fetch('/api/v1/reviews/studio', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -309,7 +309,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     if (!token) return;
     setLoadingSchedule(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/schedule/my', {
+      const res = await fetch('/api/v1/schedule/my', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -330,7 +330,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
   const handleUnblockDate = async (blackoutId) => {
     if (!token) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/schedule/block/${blackoutId}`, {
+      const res = await fetch(`/api/v1/schedule/block/${blackoutId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -383,7 +383,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
   // Handle Availability Toggle (Section 12 of Blueprint)
   const handleUpdateAvailability = async (newStatus) => {
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/availability', {
+      const res = await fetch('/api/v1/vendors/availability', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -409,7 +409,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     e.preventDefault();
     setSavingProfile(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/profile', {
+      const res = await fetch('/api/v1/vendors/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -444,7 +444,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     formData.append('file', file);
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/avatar', {
+      const res = await fetch('/api/v1/vendors/avatar', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -475,7 +475,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
   const handleRemoveAvatar = async () => {
     try {
       setUploadingAvatar(true);
-      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/profile', {
+      const res = await fetch('/api/v1/vendors/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -505,7 +505,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
   const handleDeletePortfolio = async (id) => {
     if (!window.confirm('Are you sure you want to remove this work from your gallery?')) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/portfolios/${id}`, {
+      const res = await fetch(`/api/v1/portfolios/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -523,7 +523,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
   const handleUpdateBookingStatus = async (bookingId, newStatus, rejectionReason = '') => {
     setUpdatingBookingId(bookingId);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/${bookingId}/status`, {
+      const res = await fetch(`/api/v1/bookings/${bookingId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -572,7 +572,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
 
     setRemindingBookingId(booking.id);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/api/v1/bookings/${booking.id}/remind-balance`, {
+      const res = await fetch(`/api/v1/bookings/${booking.id}/remind-balance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2696,7 +2696,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                 <a
                   href={
                     selectedPreviewWork.media_url?.startsWith('/uploads')
-                      ? `http://127.0.0.1:5000${selectedPreviewWork.media_url}`
+                      ? `${selectedPreviewWork.media_url}`
                       : selectedPreviewWork.media_url
                   }
                   target="_blank"
@@ -2990,7 +2990,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                   if (!vendorExplanationText.trim() || submittingExplanation) return;
                   setSubmittingExplanation(true);
                   try {
-                    const res = await fetch(`http://127.0.0.1:5000/api/v1/complaints/${selectedDisputeModal.id}/vendor-response`, {
+                    const res = await fetch(`/api/v1/complaints/${selectedDisputeModal.id}/vendor-response`, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
@@ -3132,7 +3132,7 @@ function BlockDatesModal({ isOpen, onClose, onSuccess, token }) {
 
     setSubmitting(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/schedule/block', {
+      const res = await fetch('/api/v1/schedule/block', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3499,7 +3499,7 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
         formData.append('description', description);
         formData.append('media_type', mediaType);
 
-        res = await fetch('http://127.0.0.1:5000/api/v1/portfolios', {
+        res = await fetch('/api/v1/portfolios', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -3508,7 +3508,7 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
         });
       } else {
         // Submit via media URL
-        res = await fetch('http://127.0.0.1:5000/api/v1/portfolios', {
+        res = await fetch('/api/v1/portfolios', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
