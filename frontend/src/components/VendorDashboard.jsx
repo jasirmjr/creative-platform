@@ -1,12 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import VendorDepositModal from './VendorDepositModal';
 import PortfolioMediaViewer from './PortfolioMediaViewer';
 import ReceiptModal from './ReceiptModal';
 import AdminSupportDeskModal from './AdminSupportDeskModal';
 import DeliverablesVaultModal from './DeliverablesVaultModal';
 import { getSocket } from '../utils/socket';
+import {
+  LayoutDashboard,
+  MessageSquare,
+  Video,
+  Calendar,
+  Scale,
+  Headphones,
+  Settings,
+  HelpCircle,
+  LogOut,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Clock,
+  ChevronDown,
+  UploadCloud,
+} from 'lucide-react';
 
-export default function VendorDashboard({ user, token: propToken, onBackToMarketplace, onOpenChat, onVendorUpdated }) {
+export default function VendorDashboard({ user, token: propToken, onBackToMarketplace, onOpenChat, onVendorUpdated, onLogout }) {
   const [activeTab, setActiveTab] = useState('gallery'); // 'gallery' | 'bookings' | 'profile'
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [receiptModalBooking, setReceiptModalBooking] = useState(null);
@@ -56,9 +74,12 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     pricing_unit: 'day',
     bio: '',
     experience_level: 'mid',
+    profile_image: '',
   });
   const [categoriesList, setCategoriesList] = useState([]);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
 
   // Feedback State
   const [notification, setNotification] = useState(null);
@@ -198,7 +219,14 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
           pricing_unit: data.data.pricing_unit || 'day',
           bio: data.data.bio || '',
           experience_level: data.data.experience_level || 'mid',
+          profile_image: data.data.profile_image || '',
         });
+
+        if (user && data.data.profile_image && user.profile_image !== data.data.profile_image) {
+          const updatedUser = { ...user, profile_image: data.data.profile_image };
+          sessionStorage.setItem('user', JSON.stringify(updatedUser));
+          window.dispatchEvent(new CustomEvent('user_profile_updated'));
+        }
       }
     } catch (err) {
       console.error('Failed to load vendor profile:', err);
@@ -401,6 +429,78 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
     }
   };
 
+  // Handle Avatar Upload
+  const handleAvatarFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setNotification({ type: 'error', message: 'Please select a valid image file (PNG, JPG, WEBP).' });
+      return;
+    }
+
+    setUploadingAvatar(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/avatar', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to upload profile photo');
+
+      const newImageUrl = data.profile_image || data.data?.profile_image;
+      setEditProfileData((prev) => ({ ...prev, profile_image: newImageUrl }));
+      setVendorProfile((prev) => ({ ...prev, profile_image: newImageUrl }));
+      if (user) {
+        const updatedUser = { ...user, profile_image: newImageUrl };
+        sessionStorage.setItem('user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new CustomEvent('user_profile_updated'));
+      }
+      setNotification({ type: 'success', message: 'Profile photo updated successfully!' });
+    } catch (err) {
+      setNotification({ type: 'error', message: err.message });
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
+  // Handle Remove Avatar
+  const handleRemoveAvatar = async () => {
+    try {
+      setUploadingAvatar(true);
+      const res = await fetch('http://127.0.0.1:5000/api/v1/vendors/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ profile_image: '' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to remove photo');
+
+      setEditProfileData((prev) => ({ ...prev, profile_image: '' }));
+      setVendorProfile((prev) => ({ ...prev, profile_image: '' }));
+      if (user) {
+        const updatedUser = { ...user, profile_image: '' };
+        sessionStorage.setItem('user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new CustomEvent('user_profile_updated'));
+      }
+      setNotification({ type: 'success', message: 'Profile photo removed.' });
+    } catch (err) {
+      setNotification({ type: 'error', message: err.message });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   // Handle Delete Portfolio Item
   const handleDeletePortfolio = async (id) => {
     if (!window.confirm('Are you sure you want to remove this work from your gallery?')) return;
@@ -537,399 +637,523 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
   });
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Studio Header Banner */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs uppercase tracking-wider font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
-              Service Provider Portal &bull; Section 16
+    <div className="w-full min-h-[calc(100vh-4rem)] bg-slate-100/60 flex flex-col md:flex-row font-sans">
+      {/* 1. Left Sticky Desktop Sidebar Navigation */}
+      <aside className="w-full md:w-64 bg-white border-r border-slate-200/90 shrink-0 flex flex-col justify-between sticky top-16 md:h-[calc(100vh-4rem)] md:overflow-y-auto">
+        <div className="p-4 space-y-6">
+          <div>
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-3 mb-2.5 block">
+              Navigation
             </span>
-            <span
-              className={`text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
-                vendorProfile?.verification_status === 'verified'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-amber-50 text-amber-700 border-amber-200'
-              }`}
-            >
-              {vendorProfile?.verification_status || 'Pending Review'}
-            </span>
+            <nav className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab('gallery')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'gallery'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <LayoutDashboard className={`w-4 h-4 ${activeTab === 'gallery' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>Dashboard</span>
+                </div>
+              </button>
 
-            {vendorProfile?.deposit_status === 'paid' ? (
-              <div className="inline-flex items-center gap-1.5">
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
-                  Listing Deposit Paid
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsVendorDepositReceiptOpen(true)}
-                  className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer shadow-2xs transition-colors"
-                  title="View official studio listing deposit receipt"
-                >
-                  Deposit Receipt
-                </button>
-              </div>
-            ) : vendorProfile?.deposit_status === 'waived' ? (
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
-                Deposit Waived
-              </span>
-            ) : (
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
-                Deposit Pending
-              </span>
-            )}
+              <button
+                type="button"
+                onClick={() => onOpenChat?.({ scope: 'client' })}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <MessageSquare className="w-4 h-4 text-slate-400" />
+                  <span>Messages & Inbox</span>
+                </div>
+                {clientUnread > 0 && (
+                  <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                    {clientUnread}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('bookings')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'bookings'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Video className={`w-4 h-4 ${activeTab === 'bookings' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>My Bookings & Shoots</span>
+                </div>
+                {pendingRequestsCount > 0 && (
+                  <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                    {pendingRequestsCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('schedule')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'schedule'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Calendar className={`w-4 h-4 ${activeTab === 'schedule' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>Projects & Calendar</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('disputes')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'disputes'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Scale className={`w-4 h-4 ${activeTab === 'disputes' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>Disputes Desk</span>
+                </div>
+                {vendorComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length > 0 && (
+                  <span className="px-1.5 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded-full">
+                    {vendorComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsAdminSupportOpen(true)}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Headphones className="w-4 h-4 text-slate-400" />
+                  <span>Platform Support Desk</span>
+                </div>
+                {adminUnread > 0 && (
+                  <span className="px-1.5 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded-full">
+                    {adminUnread}
+                  </span>
+                )}
+              </button>
+            </nav>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
-            {vendorProfile?.business_name || user?.name || 'Creator Studio'}
-          </h1>
-          <p className="text-xs text-slate-600 mt-1 max-w-xl">
-            {vendorProfile?.bio || 'Manage your creative showcase, upload portfolio works, set live availability, and track assigned client projects.'}
-          </p>
+          <div>
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-3 mb-2.5 block">
+              Settings & Account
+            </span>
+            <nav className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab('profile')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'profile'
+                    ? 'bg-blue-50 text-blue-700 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Settings className={`w-4 h-4 ${activeTab === 'profile' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>Studio Settings</span>
+                </div>
+              </button>
 
-          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mt-3">
-            <span>{vendorProfile?.location || 'Location Not Set'}</span>
-            <span>Experience: {vendorProfile?.experience || '2+ years'}</span>
-            {vendorProfile?.pricing && (
-              <span className="font-mono font-bold text-slate-800">
-                ₹{Number(vendorProfile.pricing).toLocaleString()}/{vendorProfile.pricing_unit || 'day'}
-              </span>
-            )}
+              <button
+                type="button"
+                onClick={() => setIsAdminSupportOpen(true)}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <HelpCircle className="w-4 h-4 text-slate-400" />
+                  <span>Help & FAQ</span>
+                </div>
+              </button>
+            </nav>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setIsAdminSupportOpen(true)}
-            className="relative px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-xl border border-indigo-200 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
-            title="Open official Platform Support Desk (Escalations, KYC, Payouts)"
-          >
-            <span>🛡️</span>
-            <span>Platform Support Desk</span>
-            {adminUnread > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded-full animate-pulse shadow-xs">
-                {adminUnread}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setIsUploadModalOpen(true)}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
-          >
-            <span>+</span>
-            <span>Upload Work</span>
-          </button>
-
-          <button
-            onClick={onBackToMarketplace}
-            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-xl border border-slate-200 transition-colors cursor-pointer"
-          >
-            &larr; Marketplace
-          </button>
-        </div>
-      </div>
-
-      {/* Onboarding Listing Deposit Banner (When Inactive / Pending Deposit) */}
-      {vendorProfile && vendorProfile.deposit_status !== 'paid' && vendorProfile.deposit_status !== 'waived' && (
-        <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50 border-2 border-amber-300 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900">
-                  Profile Inactive &bull; Listing Deposit Required (₹{Number(vendorProfile.deposit_amount || 2000).toLocaleString()})
-                </h3>
-                <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full uppercase tracking-wide">
-                  Hidden From Marketplace
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
-                Your studio is registered, but not listed on the public landing page. Complete your one-time onboarding deposit of ₹{Number(vendorProfile.deposit_amount || 2000).toLocaleString()} to make your profile live, appear in search, and start receiving client bookings.
+        {/* User Card at bottom of Sidebar */}
+        <div className="p-3 m-3 bg-slate-50 border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs overflow-hidden">
+              {vendorProfile?.profile_image ? (
+                <img src={vendorProfile.profile_image} alt="" className="w-full h-full object-cover" />
+              ) : (
+                (user?.name || vendorProfile?.business_name || 'B')[0].toUpperCase()
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-900 truncate">
+                {user?.name || vendorProfile?.business_name || 'Vendor'}
               </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-medium text-emerald-600">Vendor Active</span>
+              </div>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={() => setIsDepositModalOpen(true)}
-            className="self-start md:self-auto px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 hover:scale-[1.02]"
+            onClick={() => onLogout?.()}
+            title="Log Out"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
           >
-            <span>Pay Listing Deposit (₹{Number(vendorProfile.deposit_amount || 2000).toLocaleString()})</span>
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
-      )}
+      </aside>
 
-      {/* Availability Switcher Bar (Section 12 Availability Management) */}
-      <div className="mb-6 p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-bold text-slate-900 block">Section 12: Availability Management</span>
-          <span className="text-xs text-slate-500">Set your live booking status to prevent conflicting client holds.</span>
-        </div>
+      {/* 2. Main Studio Workspace Area - Edge-to-Edge Full Width */}
+      <main className="flex-1 min-w-0 bg-slate-100/60 overflow-y-auto pb-16">
+        {/* Seamless Full-Width Hero Profile Banner */}
+        <section className="w-full bg-slate-950 text-white border-b border-slate-800 relative overflow-hidden px-6 sm:px-10 py-8 shadow-sm">
+          {/* Ambient background glow accents */}
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 left-1/3 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex items-center gap-2">
-          {[
-            { id: 'available', label: 'Available for Hire', color: 'emerald' },
-            { id: 'booked', label: 'Currently Booked', color: 'rose' },
-            { id: 'unavailable', label: 'Unavailable', color: 'slate' },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => handleUpdateAvailability(item.id)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
-                currentAvailability === item.id
-                  ? item.id === 'available'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                    : item.id === 'booked'
-                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                    : 'bg-slate-800 text-white border-slate-800 shadow-xs'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex items-start gap-4 sm:gap-5">
+              {vendorProfile?.profile_image && (
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 border-white/20 shadow-md overflow-hidden shrink-0 bg-white/10 mt-1">
+                  <img src={vendorProfile.profile_image} alt="" className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div>
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight drop-shadow-sm font-heading">
+                  {vendorProfile?.business_name || user?.name || 'Creator Studio'}
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-2xl font-normal leading-relaxed">
+                  {vendorProfile?.bio || 'Manage your creative showcase, upload portfolio works, set live availability, and track assigned client projects.'}
+                </p>
+
+                {/* Simple plain details separated by thin white vertical lines */}
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-slate-300 mt-3.5 font-normal">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-blue-400" />
+                    <span>{vendorProfile?.location || 'Location Not Set'}</span>
+                  </span>
+
+                  <span className="w-px h-3.5 bg-white/25" />
+
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Experience: {vendorProfile?.experience || '2+ years'}</span>
+                  </span>
+
+                  {vendorProfile?.pricing && (
+                    <>
+                      <span className="w-px h-3.5 bg-white/25" />
+                      <span className="text-white font-semibold">
+                        ₹{Number(vendorProfile.pricing).toLocaleString()}/{vendorProfile.pricing_unit || 'day'}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {vendorProfile?.deposit_status === 'paid' && (
+                <button
+                  type="button"
+                  onClick={() => setIsVendorDepositReceiptOpen(true)}
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 transition-all backdrop-blur-sm cursor-pointer shadow-sm"
+                >
+                  Deposit Receipt
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsAdminSupportOpen(true)}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 transition-all backdrop-blur-sm cursor-pointer shadow-sm"
+              >
+                Platform Support Desk
+                {adminUnread > 0 && (
+                  <span className="ml-2 px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full">
+                    {adminUnread}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Deposit Alert Banner if pending */}
+          {vendorProfile && vendorProfile.deposit_status !== 'paid' && vendorProfile.deposit_status !== 'waived' && (
+            <div className="mt-6 p-4 rounded-xl bg-amber-500/15 border border-amber-400/30 backdrop-blur-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-amber-200 uppercase tracking-wide">
+                    Listing Deposit Required (₹{Number(vendorProfile.deposit_amount || 2000).toLocaleString()})
+                  </h3>
+                  <span className="text-[10px] font-bold bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full uppercase">
+                    Hidden From Marketplace
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-1">
+                  Complete your one-time onboarding deposit to make your studio profile live in the public marketplace search.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsDepositModalOpen(true)}
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold rounded-xl shadow-md cursor-pointer whitespace-nowrap"
+              >
+                Pay Listing Deposit
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* Seamless Full-Width Availability Bar */}
+        <section className="w-full bg-white border-b border-slate-200/90 px-6 sm:px-10 py-3 flex items-center shadow-2xs">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Availability:</span>
+            <div className="relative inline-block">
+              <select
+                value={currentAvailability === 'unavailable' ? 'unavailable' : 'available'}
+                onChange={(e) => handleUpdateAvailability(e.target.value)}
+                className="appearance-none bg-slate-50 hover:bg-slate-100/80 border border-slate-200 text-slate-800 text-xs font-semibold rounded-xl pl-3.5 pr-8 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all cursor-pointer shadow-2xs"
+              >
+                <option value="available">Available for Hire</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-500">
+                <ChevronDown className="w-3.5 h-3.5" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Notification Toast */}
+        {notification && (
+          <div className="w-full px-6 sm:px-10 pt-4">
+            <div
+              className={`p-4 rounded-xl border text-xs font-medium flex items-center justify-between shadow-xs ${
+                notification.type === 'success'
+                  ? 'bg-blue-50 border-blue-200 text-blue-900'
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${currentAvailability === item.id ? 'bg-white' : 'bg-slate-400'}`}></span>
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Notification Toast */}
-      {notification && (
-        <div
-          className={`mb-6 p-4 rounded-xl border text-xs font-medium flex items-center justify-between transition-all ${
-            notification.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
-        >
-          <span>{notification.message}</span>
-          <button
-            onClick={() => setNotification(null)}
-            className="ml-4 font-bold text-slate-400 hover:text-slate-600 cursor-pointer"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Studio Quick Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-        <div
-          onClick={() => setActiveTab('gallery')}
-          className={`p-5 rounded-xl border transition-all cursor-pointer ${
-            activeTab === 'gallery'
-              ? 'bg-blue-50/60 border-blue-300 ring-2 ring-blue-400/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
-          }`}
-        >
-          <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Gallery Works</span>
-          <p className="text-3xl font-bold text-slate-900 mt-2">{portfolio.length}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Live showcase samples</span>
-        </div>
-
-        <div
-          onClick={() => {
-            setActiveTab('bookings');
-            setBookingFilter('requests');
-          }}
-          className={`p-5 rounded-xl border transition-all cursor-pointer ${
-            activeTab === 'bookings' && bookingFilter === 'requests'
-              ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Booking Requests</span>
-            {pendingRequestsCount > 0 && (
-              <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200 animate-pulse">
-                Needs Response
-              </span>
-            )}
+              <span>{notification.message}</span>
+              <button
+                onClick={() => setNotification(null)}
+                className="ml-4 font-bold text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
           </div>
-          <p className="text-3xl font-bold text-slate-900 mt-2">{pendingRequestsCount}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Awaiting provider confirmation</span>
-        </div>
+        )}
 
-        <div
-          onClick={() => {
-            setActiveTab('bookings');
-            setBookingFilter('confirmed');
-          }}
-          className={`p-5 rounded-xl border transition-all cursor-pointer ${
-            activeTab === 'bookings' && bookingFilter === 'confirmed'
-              ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-400/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
-          }`}
-        >
-          <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Confirmed Shoots</span>
-          <p className="text-3xl font-bold text-slate-900 mt-2">{confirmedCount}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Assigned active productions</span>
-        </div>
+        {/* Studio Performance Highlights */}
+        <section className="w-full px-6 sm:px-10 pt-6 pb-2">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Studio Performance Overview
+            </h2>
+          </div>
 
-        <div
-          onClick={() => setActiveTab('reviews')}
-          className={`p-5 rounded-xl border transition-all cursor-pointer ${
-            activeTab === 'reviews'
-              ? 'bg-amber-50/60 border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
-              : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
-          }`}
-        >
-          <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Client Rating</span>
-          <p className="text-3xl font-bold text-slate-900 mt-2 flex items-center gap-1.5">
-            <span className="text-amber-500">★</span>
-            <span>{studioAvgRating}</span>
-          </p>
-          <span className="text-xs text-slate-500 mt-1 block">
-            {studioReviews.length} {studioReviews.length === 1 ? 'Verified Review' : 'Verified Reviews'}
-          </span>
-        </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {/* Gallery Works Card */}
+            <div
+              onClick={() => setActiveTab('gallery')}
+              className="bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl p-4 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-500">Gallery Works</span>
+              </div>
+              <p className="text-2xl font-bold text-slate-900 mt-1.5 tracking-tight">{portfolio.length}</p>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">Live showcase samples</span>
+            </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Gross Production Total</span>
-          <p className="text-3xl font-bold text-slate-900 mt-2 font-mono">₹{totalValue.toLocaleString()}</p>
-          <span className="text-xs text-slate-500 mt-1 block">Confirmed bookings value</span>
-        </div>
-      </div>
+            {/* Booking Requests Card */}
+            <div
+              onClick={() => {
+                setActiveTab('bookings');
+                setBookingFilter('requests');
+              }}
+              className="bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl p-4 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-500">Booking Requests</span>
+                {pendingRequestsCount > 0 && (
+                  <span className="text-[10px] font-semibold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
+                    Action
+                  </span>
+                )}
+              </div>
+              <p className="text-2xl font-bold text-slate-900 mt-1.5 tracking-tight">{pendingRequestsCount}</p>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">Awaiting confirmation</span>
+            </div>
 
-      {/* Main Studio Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 mb-6 pb-2 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('gallery')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-            activeTab === 'gallery'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <span>Creative Gallery</span>
-          <span className={`text-[10px] px-2 py-0.2 rounded-full font-bold ${
-            activeTab === 'gallery' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
-          }`}>
-            {portfolio.length}
-          </span>
-        </button>
+            {/* Confirmed Shoots Card */}
+            <div
+              onClick={() => {
+                setActiveTab('bookings');
+                setBookingFilter('confirmed');
+              }}
+              className="bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl p-4 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-500">Confirmed Shoots</span>
+              </div>
+              <p className="text-2xl font-bold text-slate-900 mt-1.5 tracking-tight">{confirmedCount}</p>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">Assigned active productions</span>
+            </div>
 
-        <button
-          onClick={() => setActiveTab('bookings')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-            activeTab === 'bookings'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <span>Assigned Projects & Bookings</span>
-          {pendingRequestsCount > 0 && (
-            <span className="text-[10px] px-2 py-0.2 bg-amber-500 text-white rounded-full font-bold">
-              {pendingRequestsCount} new
-            </span>
-          )}
-        </button>
+            {/* Client Rating Card */}
+            <div
+              onClick={() => setActiveTab('reviews')}
+              className="bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl p-4 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-500">Client Rating</span>
+              </div>
+              <p className="text-2xl font-bold text-slate-900 mt-1.5 tracking-tight flex items-center gap-1.5">
+                <span>{studioAvgRating}</span>
+                <span className="text-xs text-slate-400 font-normal">/ 5.0</span>
+              </p>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">
+                {studioReviews.length} {studioReviews.length === 1 ? 'Review' : 'Reviews'}
+              </span>
+            </div>
 
-        <button
-          onClick={() => setActiveTab('reviews')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-            activeTab === 'reviews'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <span>Client Reviews</span>
-          <span className={`text-[10px] px-2 py-0.2 rounded-full font-bold ${
-            activeTab === 'reviews' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
-          }`}>
-            {studioReviews.length}
-          </span>
-        </button>
+            {/* Gross Total Card */}
+            <div className="bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl p-4 shadow-2xs hover:shadow-xs transition-all">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-500">Gross Revenue</span>
+              </div>
+              <p className="text-2xl font-bold text-slate-900 mt-1.5 font-mono tracking-tight">₹{totalValue.toLocaleString()}</p>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">Confirmed bookings value</span>
+            </div>
+          </div>
+        </section>
 
-        <button
-          onClick={() => setActiveTab('schedule')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-            activeTab === 'schedule'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <span>Schedule & Calendar</span>
-          {scheduleData.blackouts.length > 0 && (
-            <span className="text-[10px] px-2 py-0.2 bg-amber-500 text-white rounded-full font-bold">
-              {scheduleData.blackouts.length} off-duty
-            </span>
-          )}
-        </button>
+        {/* 4. Main Studio Tabs & Body Workspace Content */}
+        <div className="w-full px-6 sm:px-10 pt-4">
+          {/* Minimal Standard Underline Tabs Header without scrollbars */}
+          <div className="flex items-center gap-6 sm:gap-8 border-b border-slate-200/90 mb-6 overflow-x-auto overflow-y-hidden no-scrollbar">
+            <button
+              onClick={() => setActiveTab('gallery')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 border-b-2 ${
+                activeTab === 'gallery'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              <span>Creative Gallery</span>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                  activeTab === 'gallery' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {portfolio.length}
+              </span>
+            </button>
 
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'profile'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          Profile & Skills
-        </button>
+            <button
+              onClick={() => setActiveTab('bookings')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 border-b-2 ${
+                activeTab === 'bookings'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              <span>Assigned Projects & Bookings</span>
+              {pendingRequestsCount > 0 && (
+                <span className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full font-bold">
+                  {pendingRequestsCount} new
+                </span>
+              )}
+            </button>
 
-        <button
-          onClick={() => setActiveTab('disputes')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            activeTab === 'disputes'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <span>Disputes Desk</span>
-          {vendorComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length > 0 && (
-            <span className="text-[10px] px-2 py-0.2 bg-rose-600 text-white rounded-full font-bold animate-pulse">
-              {vendorComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length}
-            </span>
-          )}
-        </button>
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 border-b-2 ${
+                activeTab === 'reviews'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              <span>Client Reviews</span>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                  activeTab === 'reviews' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {studioReviews.length}
+              </span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setIsAdminSupportOpen(true)}
-          className="relative px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap text-purple-700 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 border border-purple-200 flex items-center gap-1.5 shadow-2xs"
-          title="Open official Platform Support Desk (Escalations, KYC, Payouts)"
-        >
-          <span>🛡️</span>
-          <span>Platform Support</span>
-          {adminUnread > 0 && (
-            <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-bold rounded-full animate-pulse">
-              {adminUnread}
-            </span>
-          )}
-        </button>
+            <button
+              onClick={() => setActiveTab('schedule')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 border-b-2 ${
+                activeTab === 'schedule'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              <span>Schedule & Calendar</span>
+              {scheduleData.blackouts.length > 0 && (
+                <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-medium">
+                  {scheduleData.blackouts.length}
+                </span>
+              )}
+            </button>
 
-        <button
-          type="button"
-          onClick={() => onOpenChat?.({ scope: 'client' })}
-          className="relative px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 flex items-center gap-1.5 shadow-2xs"
-          title="Open direct client booking conversations"
-        >
-          <span>💬</span>
-          <span>Client Messages</span>
-          {clientUnread > 0 && (
-            <span className="px-1.5 py-0.2 bg-blue-600 text-white text-[10px] font-bold rounded-full">
-              {clientUnread}
-            </span>
-          )}
-        </button>
-      </div>
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap border-b-2 ${
+                activeTab === 'profile'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              Profile & Skills
+            </button>
+
+            <button
+              onClick={() => setActiveTab('disputes')}
+              className={`pb-3 text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 border-b-2 ${
+                activeTab === 'disputes'
+                  ? 'border-blue-600 text-blue-600 font-semibold -mb-px'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 font-medium'
+              }`}
+            >
+              <span>Disputes Desk</span>
+              {vendorComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-full font-bold">
+                  {vendorComplaints.filter((c) => c.status !== 'resolved' && c.status !== 'dismissed').length}
+                </span>
+              )}
+            </button>
+          </div>
 
       {/* TAB 1: GALLERY MANAGEMENT */}
       {activeTab === 'gallery' && (
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Your Portfolio Showcase</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Section 6 Portfolio: Upload client shoots, equipment packages, and color grading reels.
-              </p>
-            </div>
+            <h2 className="text-lg font-bold text-slate-900 font-heading">Your Portfolio Showcase</h2>
             <button
               onClick={() => setIsUploadModalOpen(true)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
             >
-              <span>+</span>
+              <Plus className="w-4 h-4" />
               <span>Upload Work</span>
             </button>
           </div>
@@ -942,13 +1166,14 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
             <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center shadow-xs">
               <h3 className="text-sm font-bold text-slate-800">Your Gallery is Empty</h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                Upload your cinematography frames, fashion shoots, or gear kits so clients can discover and book you.
+                Upload your photography, film reels, or gear kits so clients can discover and book you.
               </p>
               <button
                 onClick={() => setIsUploadModalOpen(true)}
-                className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-xs cursor-pointer"
+                className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-xs cursor-pointer inline-flex items-center gap-1.5"
               >
-                + Upload First Work
+                <Plus className="w-4 h-4" />
+                <span>Upload First Work</span>
               </button>
             </div>
           ) : (
@@ -1381,255 +1606,439 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
         </div>
       )}
 
-      {/* TAB 3: PROFILE & SKILLS MANAGEMENT */}
+      {/* TAB 3: PROFILE & SKILLS MANAGEMENT (MATCHING REFERENCE DESIGN) */}
       {activeTab === 'profile' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs max-w-3xl">
-          <div className="mb-6">
-            <h2 className="text-lg font-bold text-slate-900">Profile & Experience Settings</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Section 6: Update your commercial skills, experience, and pricing details shown to clients.
-            </p>
+        <div className="space-y-6">
+          {/* Top Header & Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
+            <h2 className="text-2xl font-bold text-slate-700">Profile & Skills</h2>
+
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-3 py-1 rounded-full flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>Listing Active</span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => window.open('/creatives', '_blank')}
+                className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-2xs"
+              >
+                Preview Public Profile
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveProfile}
+                disabled={savingProfile}
+                className="px-4 py-1.5 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-xs font-semibold rounded-xl transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {savingProfile ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
 
-          <form onSubmit={handleSaveProfile} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Studio / Artist Name</label>
-              <input
-                type="text"
-                required
-                value={editProfileData.business_name}
-                onChange={(e) => setEditProfileData({ ...editProfileData, business_name: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-              />
-            </div>
+          <form onSubmit={handleSaveProfile}>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: 3 Structured Cards (8 Cols) */}
+              <div className="lg:col-span-8 space-y-6">
+                {/* Card 1: Studio & Discipline Identity */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs">
+                  <h3 className="text-sm font-bold text-slate-900 mb-4">Studio & Discipline Identity</h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Base Location</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Mumbai, Maharashtra"
-                  value={editProfileData.location}
-                  onChange={(e) => setEditProfileData({ ...editProfileData, location: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Years of Experience</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 8+ years"
-                  value={editProfileData.experience}
-                  onChange={(e) => setEditProfileData({ ...editProfileData, experience: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Primary Discipline / Specialty</label>
-              {categoriesList.length > 0 ? (
-                <select
-                  value={editProfileData.skills}
-                  onChange={(e) => {
-                    const newSkill = e.target.value;
-                    const cat = categoriesList.find((c) => c.name === newSkill);
-                    const newPrice = cat ? cat.recommended_daily_rate : editProfileData.pricing;
-                    setEditProfileData({
-                      ...editProfileData,
-                      skills: newSkill,
-                      pricing: newPrice,
-                    });
-                  }}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all font-medium"
-                >
-                  <option value="">-- Select Creative Specialty --</option>
-                  {categoriesList.map((cat) => (
-                    <option key={cat.id} value={cat.name}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  placeholder="e.g. Cinematographers"
-                  value={editProfileData.skills}
-                  onChange={(e) => setEditProfileData({ ...editProfileData, skills: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-                />
-              )}
-            </div>
-
-            {/* Category Market Standard & Experience Tiers */}
-            {(() => {
-              const matchedCategory = categoriesList.find(
-                (c) =>
-                  (editProfileData.skills || vendorProfile?.skills || '').toLowerCase() === c.name.toLowerCase() ||
-                  (editProfileData.skills || vendorProfile?.skills || '').toLowerCase().includes(c.name.toLowerCase()) ||
-                  c.name.toLowerCase().includes((editProfileData.skills || vendorProfile?.skills || '').toLowerCase())
-              );
-              const minRate = matchedCategory ? Number(matchedCategory.min_daily_rate) : 1000;
-              const recRate = matchedCategory ? Number(matchedCategory.recommended_daily_rate) : 10000;
-              const maxRate = matchedCategory ? Number(matchedCategory.max_daily_rate) : 50000;
-              const currentRate = Number(editProfileData.pricing || 0);
-
-              const isTooLow = currentRate > 0 && currentRate < minRate;
-              const isTooHigh = currentRate > maxRate;
-              const isValid = currentRate >= minRate && currentRate <= maxRate;
-
-              return (
-                <div className="space-y-4 pt-1">
-                  {matchedCategory && (
-                    <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3.5 text-xs">
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="font-bold text-indigo-950">
-                          Market Wage Standards for {matchedCategory.name}
-                        </span>
-                        <span className="text-[10px] font-semibold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
-                          Admin Governed
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-center py-2 bg-white/90 rounded-lg border border-indigo-100 mb-2">
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Floor</span>
-                          <span className="font-mono font-bold text-slate-800">₹{minRate.toLocaleString()}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-indigo-600 block">Benchmark</span>
-                          <span className="font-mono font-bold text-indigo-700">₹{recRate.toLocaleString()}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Affordability Cap</span>
-                          <span className="font-mono font-bold text-slate-800">₹{maxRate.toLocaleString()}</span>
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-indigo-800">
-                        Platform rate guardrails prevent price gouging while guaranteeing fair minimum earnings.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Experience Tier Chips */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Seniority & Experience Level
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { id: 'entry', label: 'Rising Talent', sub: 'Early Career', mult: 0.6 },
-                        { id: 'mid', label: 'Established Pro', sub: 'Standard', mult: 1.0 },
-                        { id: 'senior', label: 'Studio Master', sub: 'Elite Director', mult: 1.7 },
-                      ].map((tier) => {
-                        const isSelected = editProfileData.experience_level === tier.id;
-                        const suggestedPrice = Math.min(
-                          Math.max(Math.round((recRate * tier.mult) / 500) * 500, minRate),
-                          maxRate
-                        );
-                        return (
-                          <button
-                            key={tier.id}
-                            type="button"
-                            onClick={() => {
-                              setEditProfileData({
-                                ...editProfileData,
-                                experience_level: tier.id,
-                                pricing: suggestedPrice,
-                              });
-                            }}
-                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500'
-                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            <div className="text-xs font-bold text-slate-900">{tier.label}</div>
-                            <div className="text-[10px] text-slate-500">{tier.sub}</div>
-                            <div className="text-[11px] font-mono font-semibold text-indigo-700 mt-1">
-                              ~₹{suggestedPrice.toLocaleString()}/day
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Pricing Inputs & Guardrail Feedback */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-semibold text-slate-700">Daily Base Rate (₹)</label>
-                        {matchedCategory && (
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            Limit: ₹{minRate.toLocaleString()} - ₹{maxRate.toLocaleString()}
+                  {/* Profile Photo / Avatar Upload Section */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-4 mb-4 border-b border-slate-100">
+                    <div className="relative group shrink-0">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-100 border-2 border-slate-200 overflow-hidden flex items-center justify-center shadow-xs">
+                        {editProfileData.profile_image ? (
+                          <img
+                            src={editProfileData.profile_image}
+                            alt="Profile"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-xl sm:text-2xl font-bold text-slate-400">
+                            {(editProfileData.business_name || 'S').charAt(0).toUpperCase()}
                           </span>
                         )}
                       </div>
+                      {uploadingAvatar && (
+                        <div className="absolute inset-0 bg-slate-900/60 rounded-2xl flex items-center justify-center">
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          ref={avatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarFileChange}
+                          className="hidden"
+                          id="profile-avatar-input"
+                        />
+                        <button
+                          type="button"
+                          disabled={uploadingAvatar}
+                          onClick={() => avatarInputRef.current?.click()}
+                          className="px-3.5 py-1.5 bg-slate-900 hover:bg-indigo-600 text-white text-xs font-semibold rounded-xl transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          <span>{editProfileData.profile_image ? 'Change Photo' : 'Upload Profile Photo'}</span>
+                        </button>
+
+                        {editProfileData.profile_image && (
+                          <button
+                            type="button"
+                            disabled={uploadingAvatar}
+                            onClick={handleRemoveAvatar}
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1.5">
+                        JPG, PNG, GIF or WEBP. Max 10MB. Recommended square 400×400px.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                        STUDIO / ARTIST NAME
+                      </label>
                       <input
-                        type="number"
-                        placeholder={`e.g. ${recRate}`}
-                        value={editProfileData.pricing}
-                        onChange={(e) => setEditProfileData({ ...editProfileData, pricing: e.target.value })}
-                        className={`w-full border rounded-xl px-3.5 py-2 text-xs font-mono font-bold transition-all ${
-                          isTooLow || isTooHigh
-                            ? 'bg-rose-50 border-rose-400 text-rose-900 focus:bg-white'
-                            : isValid
-                            ? 'bg-emerald-50/40 border-emerald-300 text-slate-900 focus:bg-white'
-                            : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
-                        }`}
+                        type="text"
+                        required
+                        value={editProfileData.business_name}
+                        onChange={(e) => setEditProfileData({ ...editProfileData, business_name: e.target.value })}
+                        className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium"
                       />
-                      {isTooLow && (
-                        <span className="text-[11px] text-rose-600 font-semibold block mt-1">
-                          Below platform minimum floor of ₹{minRate.toLocaleString()}/day.
-                        </span>
-                      )}
-                      {isTooHigh && (
-                        <span className="text-[11px] text-rose-600 font-semibold block mt-1">
-                          Exceeds platform affordability cap of ₹{maxRate.toLocaleString()}/day.
-                        </span>
-                      )}
-                      {isValid && (
-                        <span className="text-[11px] text-emerald-700 font-semibold block mt-1">
-                          ✓ Standard compliant rate for {matchedCategory?.name || 'discipline'}.
-                        </span>
-                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                          PRIMARY DISCIPLINE / SPECIALTY
+                        </label>
+                        {categoriesList.length > 0 ? (
+                          <select
+                            value={editProfileData.skills}
+                            onChange={(e) => {
+                              const newSkill = e.target.value;
+                              const cat = categoriesList.find((c) => c.name === newSkill);
+                              const newPrice = cat ? cat.recommended_daily_rate : editProfileData.pricing;
+                              setEditProfileData({
+                                ...editProfileData,
+                                skills: newSkill,
+                                pricing: newPrice,
+                              });
+                            }}
+                            className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium"
+                          >
+                            <option value="">-- Select Creative Specialty --</option>
+                            {categoriesList.map((cat) => (
+                              <option key={cat.id} value={cat.name}>
+                                {cat.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder="e.g. Cinematographers"
+                            value={editProfileData.skills}
+                            onChange={(e) => setEditProfileData({ ...editProfileData, skills: e.target.value })}
+                            className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium"
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                          BASE LOCATION
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Kochi, Kerala"
+                          value={editProfileData.location}
+                          onChange={(e) => setEditProfileData({ ...editProfileData, location: e.target.value })}
+                          className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium"
+                        />
+                      </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Pricing Unit</label>
-                      <select
-                        value={editProfileData.pricing_unit}
-                        onChange={(e) => setEditProfileData({ ...editProfileData, pricing_unit: e.target.value })}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-                      >
-                        <option value="day">Per Day (Standard Daily Wage)</option>
-                        <option value="hour">Per Hour</option>
-                        <option value="project">Per Project</option>
-                      </select>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                        YEARS OF COMMERCIAL EXPERIENCE
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 3 – 5 Years"
+                        value={editProfileData.experience}
+                        onChange={(e) => setEditProfileData({ ...editProfileData, experience: e.target.value })}
+                        className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium"
+                      />
                     </div>
                   </div>
                 </div>
-              );
-            })()}
+                <br />
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Professional Bio</label>
-              <textarea
-                rows="4"
-                value={editProfileData.bio}
-                onChange={(e) => setEditProfileData({ ...editProfileData, bio: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-              />
+                {/* Card 2: Commercial Pricing & Market Standards */}
+                {(() => {
+                  const matchedCategory = categoriesList.find(
+                    (c) =>
+                      (editProfileData.skills || vendorProfile?.skills || '').toLowerCase() === c.name.toLowerCase() ||
+                      (editProfileData.skills || vendorProfile?.skills || '').toLowerCase().includes(c.name.toLowerCase()) ||
+                      c.name.toLowerCase().includes((editProfileData.skills || vendorProfile?.skills || '').toLowerCase())
+                  );
+                  const minRate = matchedCategory ? Number(matchedCategory.min_daily_rate) : 5000;
+                  const recRate = matchedCategory ? Number(matchedCategory.recommended_daily_rate) : 18000;
+                  const maxRate = matchedCategory ? Number(matchedCategory.max_daily_rate) : 50000;
+                  const currentRate = Number(editProfileData.pricing || 0);
+
+                  const isTooLow = currentRate > 0 && currentRate < minRate;
+                  const isTooHigh = currentRate > maxRate;
+                  const isValid = currentRate >= minRate && currentRate <= maxRate;
+
+                  return (
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs space-y-5">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-slate-900">Commercial Pricing & Market Standards</h3>
+                        <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
+                          Admin Governed
+                        </span>
+                      </div>
+
+                      {/* Official Market Wage Standards Metric Box */}
+                      <div className="p-4 bg-slate-50/70 border border-slate-100 rounded-xl">
+                        <div className="grid grid-cols-3 gap-3 text-center">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Floor</span>
+                            <span className="font-mono font-bold text-slate-800 text-sm">₹{minRate.toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-indigo-600 block mb-1">Benchmark</span>
+                            <span className="font-mono font-bold text-indigo-600 text-sm">₹{recRate.toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Cap</span>
+                            <span className="font-mono font-bold text-slate-800 text-sm">₹{maxRate.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Seniority & Experience Level */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                          SENIORITY & EXPERIENCE LEVEL
+                        </label>
+                        <div className="grid grid-cols-3 gap-3">
+                          {[
+                            { id: 'entry', label: 'Rising Talent', sub: 'Early Career', mult: 0.6 },
+                            { id: 'mid', label: 'Established Pro', sub: 'Standard', mult: 1.0 },
+                            { id: 'senior', label: 'Studio Master', sub: 'Elite Director', mult: 1.7 },
+                          ].map((tier) => {
+                            const isSelected = editProfileData.experience_level === tier.id || (!editProfileData.experience_level && tier.id === 'mid');
+                            const suggestedPrice = Math.min(
+                              Math.max(Math.round((recRate * tier.mult) / 500) * 500, minRate),
+                              maxRate
+                            );
+                            return (
+                              <button
+                                key={tier.id}
+                                type="button"
+                                onClick={() => {
+                                  setEditProfileData({
+                                    ...editProfileData,
+                                    experience_level: tier.id,
+                                    pricing: suggestedPrice,
+                                  });
+                                }}
+                                className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative ${
+                                  isSelected
+                                    ? 'bg-white border-2 border-indigo-500 shadow-xs ring-0'
+                                    : 'bg-white border-slate-200/80 hover:bg-slate-50/70 text-slate-700'
+                                }`}
+                              >
+                                {isSelected && (
+                                  <span className="absolute top-2.5 right-2.5 w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] font-bold">
+                                    ✓
+                                  </span>
+                                )}
+                                <div className="text-xs font-bold text-slate-900">{tier.label}</div>
+                                <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-indigo-600 font-medium' : 'text-slate-400'}`}>
+                                  {tier.sub}
+                                </div>
+                                <div className="text-[11px] font-mono font-semibold text-indigo-600 mt-2">
+                                  ~₹{suggestedPrice.toLocaleString()}/day
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Pricing Inputs */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                            DAILY BASE RATE (₹)
+                          </label>
+                          <input
+                            type="number"
+                            placeholder={`e.g. ${recRate}`}
+                            value={editProfileData.pricing}
+                            onChange={(e) => setEditProfileData({ ...editProfileData, pricing: e.target.value })}
+                            className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                            PRICING UNIT
+                          </label>
+                          <select
+                            value={editProfileData.pricing_unit}
+                            onChange={(e) => setEditProfileData({ ...editProfileData, pricing_unit: e.target.value })}
+                            className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium"
+                          >
+                            <option value="day">Per Day (Standard Daily Wage)</option>
+                            <option value="hour">Per Hour</option>
+                            <option value="project">Per Project</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Compliance Banner */}
+                      <div className="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-emerald-700 text-xs font-medium flex items-center gap-2">
+                        <span className="text-emerald-600 font-bold">✓</span>
+                        <span>Standard compliant rate for {matchedCategory?.name || editProfileData.skills || 'Cinematographers'}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+                <br />
+
+                {/* Card 3: Professional Bio & Artist Statement */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900">Professional Bio & Artist Statement</h3>
+
+                  <textarea
+                    rows="4"
+                    value={editProfileData.bio}
+                    onChange={(e) => setEditProfileData({ ...editProfileData, bio: e.target.value })}
+                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl p-3.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-normal leading-relaxed"
+                  />
+
+                  <div className="pt-1 flex items-center justify-between">
+                    <span className="text-[11px] text-slate-400">
+                      Last updated today
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={savingProfile}
+                      className="px-5 py-2.5 bg-[#4f46e5] hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                    >
+                      {savingProfile ? 'Saving Changes...' : 'Save Profile Changes'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Live Marketplace Profile Preview & Verification Card (4 Cols) */}
+              <div className="lg:col-span-4 space-y-6">
+                {/* Live Client Preview Card */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs">
+                  <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      LIVE MARKETPLACE CARD
+                    </span>
+                    <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                      Client Preview
+                    </span>
+                  </div>
+
+                  {/* Card mockup */}
+                  <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-100 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-sm shadow-xs overflow-hidden shrink-0">
+                        {editProfileData.profile_image ? (
+                          <img src={editProfileData.profile_image} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          (editProfileData.business_name || 'S').charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-bold text-slate-900 truncate">
+                            {editProfileData.business_name || 'SNGCE'}
+                          </h4>
+                          <span className="text-blue-500 text-xs font-bold">✓</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 truncate">
+                          {editProfileData.skills || 'Cinematographers'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-600 space-y-1.5 pt-2 border-t border-slate-200/60">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Location</span>
+                        <span className="font-semibold text-slate-900">{editProfileData.location || 'Kochi, Kerala'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Experience</span>
+                        <span className="font-semibold text-slate-900">{editProfileData.experience || '3 – 5 Years'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Standard Rate</span>
+                        <span className="font-bold text-slate-900 font-mono">
+                          ₹{Number(editProfileData.pricing || 18000).toLocaleString()} / {editProfileData.pricing_unit || 'day'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 italic pt-2 border-t border-slate-200/60 leading-relaxed font-serif">
+                      "{editProfileData.bio || 'proffesional video editor & colorist specializing in commercial cinematography'}"
+                    </p>
+                  </div>
+                </div>
+                <br />
+
+                {/* Studio Status & Standing */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs space-y-3.5">
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">
+                    STUDIO STATUS & STANDING
+                  </h4>
+                  <div className="space-y-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">Verification</span>
+                      <span className="font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-full text-[11px]">
+                        Verified Studio
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">Wage Compliance</span>
+                      <span className="font-medium text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2.5 py-0.5 rounded-full text-[11px]">
+                        Standard Compliant
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">Marketplace Search</span>
+                      <span className="font-semibold text-slate-800 text-xs flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span>Active & Indexed</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-
-            <button
-              type="submit"
-              disabled={savingProfile}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
-            >
-              {savingProfile ? 'Saving Changes...' : 'Save Profile Changes'}
-            </button>
           </form>
         </div>
       )}
@@ -1827,307 +2236,376 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
       {activeTab === 'schedule' && (
         <div className="space-y-6">
           {/* Header & Actions */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-900">Studio Schedule & Availability Calendar</h2>
-                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full uppercase">
-                  Live Calendar
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1 max-w-xl">
-                Confirmed shoots are automatically booked in red. Mark personal time off, gear maintenance, or outside client shoots as unavailable so platform customers cannot book those dates.
-              </p>
+              <h2 className="text-lg font-bold text-slate-900 font-heading">Studio Schedule & Calendar</h2>
             </div>
 
             <button
               onClick={() => setIsBlockModalOpen(true)}
-              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-2 self-start sm:self-auto whitespace-nowrap"
+              className="px-4 py-2 bg-slate-900 hover:bg-blue-600 text-white text-xs font-semibold rounded-xl transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
             >
-              <span>+ Block Off Dates</span>
+              <Plus className="w-4 h-4" />
+              <span>Block Dates</span>
             </button>
           </div>
 
-          {/* Calendar Navigation & Legend */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 mb-4 border-b border-slate-100">
-              {/* Month Navigator */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date(currentCalendarDate);
-                    d.setMonth(d.getMonth() - 1);
-                    setCurrentCalendarDate(d);
-                  }}
-                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors text-xs font-bold border border-slate-200 cursor-pointer"
-                  title="Previous Month"
-                >
-                  &larr; Prev
-                </button>
+          {/* Balanced Split Layout: Calendar on Left, Schedule Breakdown on Right */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Compact Rich Calendar (7 Cols) */}
+            <div className="lg:col-span-7 xl:col-span-7 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs">
+              {/* Calendar Controls & Legend */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-100">
+                {/* Month Navigator */}
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-sm font-bold text-slate-900 font-heading min-w-[130px]">
+                    {currentCalendarDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                  </h3>
 
-                <h3 className="text-base font-black text-slate-900 min-w-[160px] text-center">
-                  {currentCalendarDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                </h3>
+                  <div className="flex items-center gap-0.5 bg-slate-100/80 p-0.5 rounded-lg border border-slate-200/60">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(currentCalendarDate);
+                        d.setMonth(d.getMonth() - 1);
+                        setCurrentCalendarDate(d);
+                      }}
+                      className="p-1 text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition-all cursor-pointer"
+                      title="Previous Month"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date(currentCalendarDate);
-                    d.setMonth(d.getMonth() + 1);
-                    setCurrentCalendarDate(d);
-                  }}
-                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors text-xs font-bold border border-slate-200 cursor-pointer"
-                  title="Next Month"
-                >
-                  Next &rarr;
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentCalendarDate(new Date())}
+                      className="px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:text-slate-900 hover:bg-white rounded-md transition-all cursor-pointer"
+                    >
+                      Today
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => setCurrentCalendarDate(new Date())}
-                  className="ml-1 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors cursor-pointer"
-                >
-                  Today
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(currentCalendarDate);
+                        d.setMonth(d.getMonth() + 1);
+                        setCurrentCalendarDate(d);
+                      }}
+                      className="p-1 text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition-all cursor-pointer"
+                      title="Next Month"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>Shoot</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span>Off-Duty</span>
+                  </span>
+                </div>
               </div>
 
-              {/* Legend */}
-              <div className="flex flex-wrap items-center gap-3 text-xs">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-md bg-rose-500 inline-block"></span>
-                  <span className="text-slate-700 font-medium">Confirmed Shoot</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-md bg-amber-500 inline-block"></span>
-                  <span className="text-slate-700 font-medium">Off-Duty / Blocked</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-md bg-emerald-500 inline-block"></span>
-                  <span className="text-slate-700 font-medium">Open / Available</span>
-                </span>
-              </div>
+              {/* Calendar Days Grid */}
+              {(() => {
+                const year = currentCalendarDate.getFullYear();
+                const month = currentCalendarDate.getMonth();
+                const firstDayOfWeek = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const daysInPrevMonth = new Date(year, month, 0).getDate();
+                const todayStr = new Date().toISOString().split('T')[0];
+
+                // Previous month trailing days to eliminate empty blank holes
+                const prevDays = [];
+                for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+                  prevDays.push({
+                    day: daysInPrevMonth - i,
+                    isCurrentMonth: false,
+                    dateStr: null,
+                  });
+                }
+
+                // Current month days
+                const currentDays = [];
+                let currentMonthBookedDays = 0;
+                let currentMonthBlockedDays = 0;
+
+                for (let d = 1; d <= daysInMonth; d++) {
+                  const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+                  const activeBooking = scheduleData.bookings.find((b) => {
+                    if (b.status === 'cancelled' || b.status === 'rejected') return false;
+                    const s = b.start_date.split('T')[0];
+                    const e = b.end_date.split('T')[0];
+                    return dateStr >= s && dateStr <= e;
+                  });
+
+                  const activeBlackout = scheduleData.blackouts.find((bl) => {
+                    const s = bl.start_date.split('T')[0];
+                    const e = bl.end_date.split('T')[0];
+                    return dateStr >= s && dateStr <= e;
+                  });
+
+                  if (activeBooking) currentMonthBookedDays++;
+                  if (activeBlackout) currentMonthBlockedDays++;
+
+                  currentDays.push({
+                    day: d,
+                    isCurrentMonth: true,
+                    dateStr,
+                    isToday: dateStr === todayStr,
+                    activeBooking,
+                    activeBlackout,
+                  });
+                }
+
+                // Next month leading days to complete grid
+                const totalCellsSoFar = prevDays.length + currentDays.length;
+                const nextDaysCount = (7 - (totalCellsSoFar % 7)) % 7;
+                const nextDays = [];
+                for (let d = 1; d <= nextDaysCount; d++) {
+                  nextDays.push({
+                    day: d,
+                    isCurrentMonth: false,
+                    dateStr: null,
+                  });
+                }
+
+                const allCells = [...prevDays, ...currentDays, ...nextDays];
+                const availableDays = Math.max(0, daysInMonth - currentMonthBookedDays - currentMonthBlockedDays);
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+                return (
+                  <div>
+                    <div className="grid grid-cols-7 text-center mb-1.5">
+                      {dayNames.map((n) => (
+                        <div key={n} className="text-[10px] font-semibold text-slate-400 uppercase py-1">
+                          {n}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+                      {allCells.map((cell, index) => {
+                        if (!cell.isCurrentMonth) {
+                          return (
+                            <div
+                              key={`other-${index}`}
+                              className="min-h-[54px] sm:min-h-[62px] p-1.5 rounded-lg bg-slate-50/50 border border-slate-100 text-slate-300 select-none flex flex-col justify-start"
+                            >
+                              <span className="text-[10px] font-medium text-slate-300">{cell.day}</span>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={cell.dateStr}
+                            className={`min-h-[54px] sm:min-h-[62px] p-1.5 rounded-lg border transition-all flex flex-col justify-between ${
+                              cell.activeBooking
+                                ? 'bg-rose-50/70 border-rose-200'
+                                : cell.activeBlackout
+                                ? 'bg-amber-50/70 border-amber-200'
+                                : 'bg-white border-slate-200/80 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span
+                                className={`text-[11px] font-semibold w-5 h-5 flex items-center justify-center rounded-full ${
+                                  cell.isToday
+                                    ? 'bg-blue-600 text-white font-bold'
+                                    : 'text-slate-800'
+                                }`}
+                              >
+                                {cell.day}
+                              </span>
+                              {cell.activeBooking && (
+                                <span className="text-[8px] font-bold text-rose-700 bg-rose-100/90 px-1 py-0.2 rounded">
+                                  Shoot
+                                </span>
+                              )}
+                              {cell.activeBlackout && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUnblockDate(cell.activeBlackout.id)}
+                                  title="Unblock date"
+                                  className="text-[10px] text-amber-800 hover:text-rose-700 p-0.5 rounded cursor-pointer transition-colors"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="mt-0.5 flex-1 flex flex-col justify-end">
+                              {cell.activeBooking ? (
+                                <div className="text-[9px] text-rose-900 font-medium truncate leading-tight">
+                                  <span className="block truncate font-bold">{cell.activeBooking.project_name || 'Shoot'}</span>
+                                  <span className="text-[8px] text-rose-600 block truncate">
+                                    {cell.activeBooking.customer_name}
+                                  </span>
+                                </div>
+                              ) : cell.activeBlackout ? (
+                                <div className="text-[9px] text-amber-900 font-medium truncate leading-tight">
+                                  <span className="block truncate font-bold">{cell.activeBlackout.reason || 'Off-Duty'}</span>
+                                  <span className="text-[8px] text-amber-600 block">Unavailable</span>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Rich Month Availability Summary Bar */}
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-3.5">
+                        <span className="flex items-center gap-1.5 text-slate-600">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <span className="font-bold text-slate-800">{availableDays}</span>
+                          <span className="text-slate-500 text-[11px]">Available</span>
+                        </span>
+                        <span className="flex items-center gap-1.5 text-slate-600">
+                          <span className="w-2 h-2 rounded-full bg-rose-500" />
+                          <span className="font-bold text-slate-800">{currentMonthBookedDays}</span>
+                          <span className="text-slate-500 text-[11px]">Booked</span>
+                        </span>
+                        <span className="flex items-center gap-1.5 text-slate-600">
+                          <span className="w-2 h-2 rounded-full bg-amber-400" />
+                          <span className="font-bold text-slate-800">{currentMonthBlockedDays}</span>
+                          <span className="text-slate-500 text-[11px]">Off-Duty</span>
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-400">
+                        {Math.round((availableDays / daysInMonth) * 100)}% Open
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
-            {/* Calendar Days Grid */}
-            {(() => {
-              const year = currentCalendarDate.getFullYear();
-              const month = currentCalendarDate.getMonth();
-              const firstDayOfWeek = new Date(year, month, 1).getDay();
-              const daysInMonth = new Date(year, month + 1, 0).getDate();
-              const todayStr = new Date().toISOString().split('T')[0];
+            {/* Right Column: Schedule Breakdown (5 Cols) */}
+            <div className="lg:col-span-5 xl:col-span-5 space-y-6">
+              {/* Active Blackouts */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Off-Duty & Blocked Ranges
+                  </h3>
+                  <button
+                    onClick={() => setIsBlockModalOpen(true)}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                  >
+                    + Add Block
+                  </button>
+                </div>
 
-              const days = [];
-              for (let i = 0; i < firstDayOfWeek; i++) {
-                days.push(null);
-              }
-              for (let d = 1; d <= daysInMonth; d++) {
-                days.push(d);
-              }
+                {scheduleData.blackouts.length === 0 ? (
+                  <div className="py-7 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                    <p className="text-xs text-slate-500 font-medium">No blocked dates.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Your studio is available to accept bookings on all open days.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto no-scrollbar max-h-56 overflow-y-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
+                          <th className="pb-2.5 pr-2 font-semibold">Reason</th>
+                          <th className="pb-2.5 px-2 font-semibold">Start</th>
+                          <th className="pb-2.5 px-2 font-semibold">End</th>
+                          <th className="pb-2.5 pl-2 text-right font-semibold">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {scheduleData.blackouts.map((bl) => {
+                          const startDate = new Date(bl.start_date);
+                          const endDate = new Date(bl.end_date);
+                          return (
+                            <tr key={bl.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-2.5 pr-2 font-semibold text-slate-900">
+                                <span className="block truncate max-w-[110px] sm:max-w-[140px]" title={bl.reason || 'Off-Duty'}>
+                                  {bl.reason || 'Off-Duty'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-2 text-slate-600 whitespace-nowrap text-[11px]">
+                                {startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </td>
+                              <td className="py-2.5 px-2 text-slate-600 whitespace-nowrap text-[11px]">
+                                {endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </td>
+                              <td className="py-2.5 pl-2 text-right whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUnblockDate(bl.id)}
+                                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline transition-colors cursor-pointer"
+                                >
+                                  Unblock
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <br />
+          
 
-              const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+              {/* Confirmed Platform Shoots */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Scheduled Client Shoots
+                  </h3>
+                </div>
 
-              return (
-                <div>
-                  <div className="grid grid-cols-7 gap-1.5 text-center mb-2">
-                    {dayNames.map((n) => (
-                      <div key={n} className="text-[11px] font-bold text-slate-400 uppercase py-1">
-                        {n}
+                {scheduleData.bookings.length === 0 ? (
+                  <div className="py-7 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                    <p className="text-xs text-slate-500 font-medium">No confirmed shoots scheduled yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1 no-scrollbar">
+                    {scheduleData.bookings.map((bk) => (
+                      <div
+                        key={bk.id}
+                        className="p-3 bg-slate-50/80 border border-slate-200/80 rounded-xl flex items-center justify-between gap-3 text-xs hover:border-slate-300 transition-colors"
+                      >
+                        <div>
+                          <strong className="text-slate-900 block font-bold">
+                            {bk.project_name}
+                            {bk.crew_bundle_id && (
+                              <span className="ml-2 text-[10px] font-medium text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">
+                                Crew: {bk.crew_role || bk.crew_bundle_name}
+                              </span>
+                            )}
+                          </strong>
+                          <span className="text-[11px] text-slate-500 mt-0.5 block">
+                            Client: {bk.customer_name || 'Client'} &bull; {new Date(bk.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} &rarr; {new Date(bk.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-slate-800 font-mono block">
+                            ₹{Number(bk.total_amount || 0).toLocaleString()}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 inline-block mt-0.5">
+                            {bk.status}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
-
-                  <div className="grid grid-cols-7 gap-2">
-                    {days.map((d, index) => {
-                      if (d === null) {
-                        return (
-                          <div
-                            key={`empty-${index}`}
-                            className="min-h-[85px] bg-slate-50/50 rounded-xl border border-transparent"
-                          />
-                        );
-                      }
-
-                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                      const isToday = dateStr === todayStr;
-
-                      // Check bookings
-                      const activeBooking = scheduleData.bookings.find((b) => {
-                        if (b.status === 'cancelled' || b.status === 'rejected') return false;
-                        const s = b.start_date.split('T')[0];
-                        const e = b.end_date.split('T')[0];
-                        return dateStr >= s && dateStr <= e;
-                      });
-
-                      // Check blackouts
-                      const activeBlackout = scheduleData.blackouts.find((bl) => {
-                        const s = bl.start_date.split('T')[0];
-                        const e = bl.end_date.split('T')[0];
-                        return dateStr >= s && dateStr <= e;
-                      });
-
-                      return (
-                        <div
-                          key={dateStr}
-                          className={`min-h-[90px] p-2 rounded-xl border transition-all flex flex-col justify-between ${
-                            activeBooking
-                              ? 'bg-rose-50/70 border-rose-200 ring-1 ring-rose-300/40'
-                              : activeBlackout
-                              ? 'bg-amber-50/70 border-amber-200 ring-1 ring-amber-300/40'
-                              : 'bg-white border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span
-                              className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${
-                                isToday
-                                  ? 'bg-slate-900 text-white'
-                                  : 'text-slate-800'
-                              }`}
-                            >
-                              {d}
-                            </span>
-                            {activeBooking && (
-                              <span className="text-[9px] font-bold text-rose-700 uppercase tracking-tight bg-rose-100/80 px-1.5 py-0.5 rounded">
-                                Booked
-                              </span>
-                            )}
-                            {activeBlackout && (
-                              <button
-                                type="button"
-                                onClick={() => handleUnblockDate(activeBlackout.id)}
-                                title="Click to unblock this date"
-                                className="text-[10px] text-amber-800 hover:text-rose-700 bg-amber-100 hover:bg-amber-200 px-1 rounded cursor-pointer transition-colors"
-                              >
-                                ✕
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="mt-1 flex-1 flex flex-col justify-end">
-                            {activeBooking ? (
-                              <div className="text-[10px] text-rose-900 font-semibold truncate leading-tight">
-                                <span className="block truncate">{activeBooking.project_name || 'Shoot'}</span>
-                                <span className="text-[9px] text-rose-600 font-normal block truncate">
-                                  {activeBooking.customer_name}
-                                </span>
-                              </div>
-                            ) : activeBlackout ? (
-                              <div className="text-[10px] text-amber-900 font-semibold truncate leading-tight">
-                                <span className="block truncate">{activeBlackout.reason || 'Off-Duty'}</span>
-                                <span className="text-[9px] text-amber-700 font-normal block">Unavailable</span>
-                              </div>
-                            ) : (
-                              <span className="text-[9px] text-emerald-600 font-medium">✓ Available</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Schedule Breakdown: Active Blackouts & Upcoming Shoots */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Active Blackouts */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>Off-Duty & Blocked Ranges</span>
-                  <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.2 rounded-full font-bold">
-                    {scheduleData.blackouts.length}
-                  </span>
-                </h3>
-                <button
-                  onClick={() => setIsBlockModalOpen(true)}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
-                >
-                  + Add Block
-                </button>
+                )}
               </div>
-
-              {scheduleData.blackouts.length === 0 ? (
-                <div className="py-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                  <p className="text-xs text-slate-500 font-medium">No blocked dates.</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Your studio is available to accept bookings on all open days.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                  {scheduleData.blackouts.map((bl) => (
-                    <div
-                      key={bl.id}
-                      className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-xs"
-                    >
-                      <div>
-                        <strong className="text-slate-900 block font-bold">{bl.reason || 'Off-Duty'}</strong>
-                        <span className="text-[11px] text-slate-500 mt-0.5 block">
-                          {new Date(bl.start_date).toLocaleDateString()} &rarr; {new Date(bl.end_date).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => handleUnblockDate(bl.id)}
-                        className="px-2.5 py-1 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap"
-                      >
-                        Unblock
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Confirmed Platform Shoots */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>Scheduled Client Shoots</span>
-                  <span className="text-xs bg-rose-100 text-rose-800 px-2 py-0.2 rounded-full font-bold">
-                    {scheduleData.bookings.length}
-                  </span>
-                </h3>
-              </div>
-
-              {scheduleData.bookings.length === 0 ? (
-                <div className="py-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                  <p className="text-xs text-slate-500 font-medium">No confirmed shoots scheduled yet.</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                  {scheduleData.bookings.map((bk) => (
-                    <div
-                      key={bk.id}
-                      className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3 text-xs"
-                    >
-                      <div>
-                        <strong className="text-slate-900 block font-bold">
-                          {bk.project_name}
-                          {bk.crew_bundle_id && (
-                            <span className="ml-2 text-[10px] font-medium text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">
-                              Crew: {bk.crew_role || bk.crew_bundle_name}
-                            </span>
-                          )}
-                        </strong>
-                        <span className="text-[11px] text-slate-500 mt-0.5 block">
-                          Client: {bk.customer_name || 'Client'} &bull; {new Date(bk.start_date).toLocaleDateString()} &rarr; {new Date(bk.end_date).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-slate-800 font-mono block">
-                          ₹{Number(bk.total_amount || 0).toLocaleString()}
-                        </span>
-                        <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 inline-block mt-0.5">
-                          {bk.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -2613,7 +3091,9 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
         onDeliverableUpdated={() => fetchBookings()}
         onOpenChat={onOpenChat}
       />
-    </main>
+        </div>
+      </main>
+    </div>
   );
 }
 
@@ -3065,48 +3545,48 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg p-6 sm:p-8 shadow-2xl relative my-8 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl w-full max-w-md sm:max-w-lg p-6 sm:p-8 shadow-2xl relative my-auto text-slate-900 border border-slate-100 max-h-[92vh] overflow-y-auto transition-all">
+        {/* Top-Right Circular Close Button matching Login Page */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 text-base cursor-pointer"
+          className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer text-sm font-bold"
+          title="Close"
         >
           ✕
         </button>
 
+        {/* Minimal Typography Header */}
         <div className="mb-5">
-          <span className="text-[10px] uppercase font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
-            Showcase Work
-          </span>
-          <h2 className="text-xl font-bold text-slate-900 mt-2">
-            Upload Work to Gallery
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight font-heading">
+            Upload Work
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Upload photos, showreel videos, or PDF treatment lookbooks directly from your device.
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-normal">
+            Add photos, videos, or PDF lookbooks to your studio gallery.
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 text-xs text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-xl font-medium">
+          <div className="mb-4 text-xs text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl font-medium">
             {error}
           </div>
         )}
 
-        {/* Upload Source Switcher: Device vs URL */}
-        <div className="grid grid-cols-2 bg-slate-100 p-1 rounded-xl mb-5 border border-slate-200">
+        {/* Source Switcher: Minimal Pill */}
+        <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
           <button
             type="button"
             onClick={() => {
               setUploadSource('device');
               setError('');
             }}
-            className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
               uploadSource === 'device'
-                ? 'bg-white text-blue-600 shadow-xs'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>Upload from Device</span>
+            Upload from Device
           </button>
           <button
             type="button"
@@ -3114,21 +3594,21 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
               setUploadSource('url');
               setError('');
             }}
-            className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
               uploadSource === 'url'
-                ? 'bg-white text-blue-600 shadow-xs'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>Web URL / Presets</span>
+            Web URL / Link
           </button>
         </div>
 
         {/* Presets Row (Only if URL selected) */}
         {uploadSource === 'url' && (
-          <div className="mb-5 bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <div className="mb-4 bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="text-[11px] font-semibold text-slate-700 block mb-2">
-              Quick Showcase Presets:
+              Quick Presets:
             </span>
             <div className="flex flex-wrap gap-1.5">
               {presets.map((p, idx) => (
@@ -3145,70 +3625,70 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Work Title */}
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          {/* Work Title - NO PLACEHOLDER */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Work Title *</label>
+            <label className="block text-xs font-semibold text-slate-800 mb-1">
+              Work Title *
+            </label>
             <input
               type="text"
               required
-              placeholder="e.g. Commercial Car Ad / Fashion Lookbook / Cine Reel"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+              className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
             />
           </div>
 
-          {/* Media Type Switcher: 3 Options */}
+          {/* Media Format */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Media Format</label>
-            <div className="grid grid-cols-3 gap-2">
+            <label className="block text-xs font-semibold text-slate-800 mb-1">
+              Media Format
+            </label>
+            <div className="flex bg-slate-100 p-1 rounded-xl">
               <button
                 type="button"
                 onClick={() => setMediaType('image')}
-                className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                   mediaType === 'image'
-                    ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-xs font-bold'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>Photo / Image</span>
+                Photo / Image
               </button>
-
               <button
                 type="button"
                 onClick={() => setMediaType('video')}
-                className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                   mediaType === 'video'
-                    ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-xs font-bold'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>Video / Reel</span>
+                Video / Reel
               </button>
-
               <button
                 type="button"
                 onClick={() => setMediaType('document')}
-                className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                   mediaType === 'document'
-                    ? 'bg-blue-50 border-blue-600 text-blue-700 shadow-xs font-bold'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>PDF Lookbook</span>
+                PDF Lookbook
               </button>
             </div>
           </div>
 
-          {/* ================= OPTION 1: DEVICE UPLOAD ZONE ================= */}
+          {/* Device Upload Zone vs URL input */}
           {uploadSource === 'device' ? (
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Select File from Your Device (Images, Videos, or PDFs up to 150MB) *
+              <label className="block text-xs font-semibold text-slate-800 mb-1">
+                Select File *
               </label>
-
-              <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-slate-50 hover:bg-blue-50/40">
+              <label className="border border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-blue-50/20">
                 <input
                   type="file"
                   className="hidden"
@@ -3221,81 +3701,61 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
                       : 'image/*,video/*,application/pdf'
                   }
                 />
-
                 {selectedFile ? (
                   <div className="flex flex-col items-center">
                     <span className="text-xs font-bold text-slate-900 max-w-xs truncate">
                       {selectedFile.name}
                     </span>
                     <span className="text-[11px] text-slate-500 mt-0.5">
-                      {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB &bull; Click to change file
+                      {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB &bull; Click to change
                     </span>
                   </div>
                 ) : (
-                  <>
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-lg mb-2">
-                      ↑
-                    </div>
-                    <span className="text-xs font-bold text-slate-800">
-                      Click to choose image, video, or PDF from device
-                    </span>
-                    <span className="text-[11px] text-slate-400 mt-0.5">
-                      Supports JPG, PNG, MP4, MOV, WEBM, PDF (up to 150MB)
-                    </span>
-                  </>
+                  <div className="flex items-center gap-2 text-xs font-medium text-slate-600 py-1">
+                    <UploadCloud className="w-4 h-4 text-blue-600" />
+                    <span>Click to choose file from device</span>
+                  </div>
                 )}
               </label>
 
-              {/* Live Preview for Device File */}
               {filePreview && (
-                <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase block mb-1.5">
-                    File Preview:
+                <div className="mt-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
+                    Preview:
                   </span>
                   {mediaType === 'video' ? (
                     <video
                       src={filePreview}
                       controls
-                      className="w-full max-h-48 object-cover rounded-lg bg-black"
+                      className="w-full max-h-40 object-cover rounded-lg bg-black"
                     />
                   ) : (
                     <img
                       src={filePreview}
                       alt="Preview"
-                      className="w-full max-h-44 object-cover rounded-lg"
+                      className="w-full max-h-40 object-cover rounded-lg"
                     />
                   )}
                 </div>
               )}
             </div>
           ) : (
-            /* ================= OPTION 2: URL INPUT ================= */
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Media File / Online Video URL *
+              <label className="block text-xs font-semibold text-slate-800 mb-1">
+                Media URL *
               </label>
               <input
                 type="url"
                 required
-                placeholder={
-                  mediaType === 'video'
-                    ? 'Paste Instagram Reel, YouTube, Vimeo, or MP4 link...'
-                    : 'https://images.unsplash.com/... or image link'
-                }
                 value={mediaUrl}
                 onChange={(e) => setMediaUrl(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
               />
-              <p className="text-[11px] text-slate-500 mt-1">
-                {mediaType === 'video'
-                  ? 'Supports Instagram Reels & Posts, YouTube videos & shorts, Vimeo, and direct MP4/WebM URLs.'
-                  : 'Supports Unsplash, CDN images, or direct image file links.'}
-              </p>
 
               {mediaUrl && (
-                <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase block mb-1.5">
-                    Live URL Preview:
+                <div className="mt-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
+                    Preview:
                   </span>
                   <div className="relative aspect-video rounded-lg overflow-hidden bg-slate-950">
                     <PortfolioMediaViewer
@@ -3310,28 +3770,26 @@ function UploadWorkModal({ isOpen, onClose, onSuccess, token }) {
             </div>
           )}
 
-          {/* Description */}
+          {/* Description - NO PLACEHOLDER */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Description / Gear / Production Notes
+            <label className="block text-xs font-semibold text-slate-800 mb-1">
+              Description / Gear Notes
             </label>
             <textarea
               rows="3"
-              placeholder="Detail the cameras, lenses, lighting used, or project scope..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+              className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all resize-none"
             />
           </div>
 
-          {/* Submit Button */}
+          {/* Submit Button matching AuthModal */}
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
           >
-            <span>{submitting ? 'Uploading to Gallery...' : 'Publish to Gallery'}</span>
-            <span>&rarr;</span>
+            <span>{submitting ? 'Publishing...' : 'Publish to Gallery'}</span>
           </button>
         </form>
       </div>

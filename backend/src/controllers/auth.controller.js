@@ -369,6 +369,7 @@ exports.verifyOtp = async (req, res) => {
         email: user.email,
         mobile: user.mobile,
         role: user.role,
+        profile_image: user.vendor_profile?.profile_image || user.profile_image || null,
         has_password: Boolean(user.password_hash),
         vendor_profile: user.vendor_profile || null,
       },
@@ -404,23 +405,29 @@ exports.commonLogin = async (req, res) => {
     const configPassword = (process.env.ADMIN_PASSWORD || 'admin@hub2026').trim();
 
     if (cleanInput === configEmail && password.trim() === configPassword) {
-      let adminUserRes = await db.query('SELECT * FROM users WHERE email = $1', [configEmail]);
-      let adminUser = adminUserRes.rows[0];
+      let adminUser = null;
+      try {
+        let adminUserRes = await db.query('SELECT * FROM users WHERE email = $1', [configEmail]);
+        adminUser = adminUserRes.rows[0];
 
-      if (!adminUser) {
-        const adminHash = await bcrypt.hash(configPassword, 10);
-        const insertAdmin = `
-          INSERT INTO users (name, mobile, email, role, password_hash, is_verified)
-          VALUES ('System Administrator', '0000000000', $1, 'admin', $2, true)
-          ON CONFLICT (email) DO UPDATE SET role = 'admin'
-          RETURNING *;
-        `;
-        const created = await db.query(insertAdmin, [configEmail, adminHash]);
-        adminUser = created.rows[0];
+        if (!adminUser) {
+          const adminHash = await bcrypt.hash(configPassword, 10);
+          const insertAdmin = `
+            INSERT INTO users (name, mobile, email, role, password_hash, is_verified)
+            VALUES ('System Administrator', '0000000000', $1, 'admin', $2, true)
+            ON CONFLICT (email) DO UPDATE SET role = 'admin'
+            RETURNING *;
+          `;
+          const created = await db.query(insertAdmin, [configEmail, adminHash]);
+          adminUser = created.rows[0];
+        }
+      } catch (dbErr) {
+        console.warn('[Admin Auth Warning]: DB unreachable during admin sign-in. Falling back to master config token.', dbErr.message);
       }
 
+      const adminId = adminUser?.id || '00000000-0000-0000-0000-000000000001';
       const token = jwt.sign(
-        { id: adminUser.id, email: adminUser.email, role: adminUser.role },
+        { id: adminId, email: configEmail, role: 'admin' },
         process.env.JWT_SECRET || 'fallback_secret',
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
       );
@@ -430,17 +437,17 @@ exports.commonLogin = async (req, res) => {
         message: 'Admin sign in successful',
         token,
         user: {
-          id: adminUser.id,
-          name: adminUser.name || 'System Administrator',
-          email: adminUser.email,
-          role: adminUser.role,
+          id: adminId,
+          name: adminUser?.name || 'System Administrator',
+          email: configEmail,
+          role: 'admin',
         },
       });
     }
 
     // 2. Query registered users by Email OR Mobile
     const userRes = await db.query(
-      `SELECT u.*, vp.id as vendor_profile_id, vp.business_name, vp.verification_status, vp.deposit_status
+      `SELECT u.*, vp.id as vendor_profile_id, vp.business_name, vp.verification_status, vp.deposit_status, vp.profile_image as vendor_profile_image
        FROM users u
        LEFT JOIN vendor_profiles vp ON u.id = vp.user_id
        WHERE LOWER(u.email) = $1 OR u.mobile = $2 OR u.mobile = $3;`,
@@ -498,18 +505,26 @@ exports.commonLogin = async (req, res) => {
         email: user.email,
         mobile: user.mobile,
         role: user.role,
+        profile_image: user.profile_image || user.vendor_profile_image || null,
         has_password: true,
         vendor_profile: user.vendor_profile_id ? {
           id: user.vendor_profile_id,
           business_name: user.business_name,
           verification_status: user.verification_status,
           deposit_status: user.deposit_status,
+          profile_image: user.vendor_profile_image || user.profile_image || null,
         } : null,
       },
     });
   } catch (error) {
     console.error('Password Login Error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+    const isDbError = error.code === 'XX000' || error.message?.includes('tenant') || error.message?.includes('ENOTFOUND') || error.message?.includes('connect');
+    return res.status(500).json({ 
+      success: false, 
+      message: isDbError 
+        ? 'Database is currently paused or unreachable. Please check your Supabase project status.' 
+        : 'Internal server error' 
+    });
   }
 };
 
@@ -529,23 +544,29 @@ exports.adminLogin = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid administrator credentials.' });
     }
 
-    let adminUserRes = await db.query('SELECT * FROM users WHERE email = $1', [configEmail]);
-    let adminUser = adminUserRes.rows[0];
+    let adminUser = null;
+    try {
+      let adminUserRes = await db.query('SELECT * FROM users WHERE email = $1', [configEmail]);
+      adminUser = adminUserRes.rows[0];
 
-    if (!adminUser) {
-      const adminHash = await bcrypt.hash(configPassword, 10);
-      const insertAdmin = `
-        INSERT INTO users (name, mobile, email, role, password_hash, is_verified)
-        VALUES ('System Administrator', '0000000000', $1, 'admin', $2, true)
-        ON CONFLICT (email) DO UPDATE SET role = 'admin'
-        RETURNING *;
-      `;
-      const created = await db.query(insertAdmin, [configEmail, adminHash]);
-      adminUser = created.rows[0];
+      if (!adminUser) {
+        const adminHash = await bcrypt.hash(configPassword, 10);
+        const insertAdmin = `
+          INSERT INTO users (name, mobile, email, role, password_hash, is_verified)
+          VALUES ('System Administrator', '0000000000', $1, 'admin', $2, true)
+          ON CONFLICT (email) DO UPDATE SET role = 'admin'
+          RETURNING *;
+        `;
+        const created = await db.query(insertAdmin, [configEmail, adminHash]);
+        adminUser = created.rows[0];
+      }
+    } catch (dbErr) {
+      console.warn('[Admin Auth Warning]: DB unreachable during admin-login. Falling back to master config token.', dbErr.message);
     }
 
+    const adminId = adminUser?.id || '00000000-0000-0000-0000-000000000001';
     const token = jwt.sign(
-      { id: adminUser.id, email: adminUser.email, role: 'admin' },
+      { id: adminId, email: configEmail, role: 'admin' },
       process.env.JWT_SECRET || 'fallback_secret',
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -555,15 +576,21 @@ exports.adminLogin = async (req, res) => {
       message: 'Admin console authenticated successfully',
       token,
       user: {
-        id: adminUser.id,
-        name: adminUser.name || 'System Administrator',
-        email: adminUser.email,
+        id: adminId,
+        name: adminUser?.name || 'System Administrator',
+        email: configEmail,
         role: 'admin',
       },
     });
   } catch (error) {
     console.error('Admin Login Error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+    const isDbError = error.code === 'XX000' || error.message?.includes('tenant') || error.message?.includes('ENOTFOUND') || error.message?.includes('connect');
+    return res.status(500).json({ 
+      success: false, 
+      message: isDbError 
+        ? 'Database is currently paused or unreachable. Please check your Supabase project status.' 
+        : 'Internal server error' 
+    });
   }
 };
 

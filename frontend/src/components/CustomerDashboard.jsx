@@ -778,8 +778,12 @@ export default function CustomerDashboard({
                     {/* Header: Studio Avatar, Name, Verified Badge & Location */}
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 font-bold text-base flex items-center justify-center shrink-0">
-                          {(vendor.business_name || 'V').charAt(0).toUpperCase()}
+                        <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 font-bold text-base flex items-center justify-center shrink-0 overflow-hidden">
+                          {vendor.profile_image ? (
+                            <img src={vendor.profile_image} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            (vendor.business_name || 'V').charAt(0).toUpperCase()
+                          )}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">

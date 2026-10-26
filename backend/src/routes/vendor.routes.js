@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const vendorController = require('../controllers/vendor.controller');
+const { uploadMiddleware } = require('../controllers/portfolio.controller');
 const { verifyToken, authorizeRoles } = require('../middleware/auth.middleware');
 
 // Public listing
@@ -10,6 +11,7 @@ router.get('/list', vendorController.getRegisteredVendors);
 router.post('/register', verifyToken, vendorController.registerVendor);
 router.get('/profile', verifyToken, vendorController.getVendorProfile);
 router.put('/profile', verifyToken, vendorController.updateProviderProfile);
+router.post('/avatar', verifyToken, uploadMiddleware, vendorController.uploadAvatar);
 router.patch('/availability', verifyToken, vendorController.updateAvailability);
 
 // Onboarding Listing Deposit actions

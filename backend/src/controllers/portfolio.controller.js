@@ -319,3 +319,34 @@ exports.getMediaPreview = async (req, res) => {
   }
 };
 
+// GET /api/v1/portfolios/proxy-media?url=...
+// Public: Securely proxies external media covers (e.g. Instagram/FB CDN) to bypass CORS and hotlink blocks
+exports.proxyMedia = async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).send('URL parameter is required.');
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).send('Failed to fetch media');
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+
+    const arrayBuffer = await response.arrayBuffer();
+    return res.send(Buffer.from(arrayBuffer));
+  } catch (error) {
+    console.error('Proxy Media Error:', error.message);
+    return res.status(500).send('Error proxying media');
+  }
+};
+

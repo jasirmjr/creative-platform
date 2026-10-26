@@ -212,11 +212,11 @@ exports.updateAvailability = async (req, res) => {
 };
 
 // PUT /api/v1/vendors/profile
-// Protected: Provider updates their skills, experience, pricing, bio
+// Protected: Provider updates their skills, experience, pricing, bio, profile image
 exports.updateProviderProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { business_name, bio, location, experience, skills, pricing, pricing_unit, experience_level } = req.body;
+    const { business_name, bio, location, experience, skills, pricing, pricing_unit, experience_level, profile_image } = req.body;
 
     // Validate pricing against category guardrails if pricing is being updated
     if (pricing !== undefined && pricing !== null && pricing !== '') {
@@ -253,8 +253,9 @@ exports.updateProviderProfile = async (req, res) => {
         skills = COALESCE($5, skills),
         pricing = COALESCE($6, pricing),
         pricing_unit = COALESCE($7, pricing_unit),
-        experience_level = COALESCE($8, experience_level)
-      WHERE user_id = $9
+        experience_level = COALESCE($8, experience_level),
+        profile_image = CASE WHEN $9::text IS NOT NULL THEN (CASE WHEN $9 = '' THEN NULL ELSE $9 END) ELSE profile_image END
+      WHERE user_id = $10
       RETURNING *;
     `;
     const { rows } = await db.query(updateQuery, [
@@ -266,11 +267,16 @@ exports.updateProviderProfile = async (req, res) => {
       pricing ? Number(pricing) : null,
       pricing_unit,
       experience_level || null,
+      profile_image !== undefined ? profile_image : null,
       userId,
     ]);
 
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Vendor profile not found.' });
+    }
+
+    if (profile_image !== undefined) {
+      await db.query(`UPDATE users SET profile_image = $1 WHERE id = $2`, [profile_image || null, userId]).catch(() => {});
     }
 
     return res.status(200).json({
@@ -280,6 +286,35 @@ exports.updateProviderProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Update Provider Profile Error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+// POST /api/v1/vendors/avatar
+// Protected: Provider uploads an image file for their profile photo
+exports.uploadAvatar = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No image file uploaded.' });
+    }
+
+    const avatarUrl = `http://127.0.0.1:5000/uploads/${req.file.filename}`;
+    const { rows } = await db.query(
+      `UPDATE vendor_profiles SET profile_image = $1 WHERE user_id = $2 RETURNING *;`,
+      [avatarUrl, userId]
+    );
+
+    await db.query(`UPDATE users SET profile_image = $1 WHERE id = $2;`, [avatarUrl, userId]).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile image uploaded successfully',
+      data: rows[0],
+      profile_image: avatarUrl,
+    });
+  } catch (error) {
+    console.error('Upload Avatar Error:', error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

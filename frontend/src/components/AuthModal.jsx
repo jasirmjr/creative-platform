@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import VendorDepositModal from './VendorDepositModal';
 
-// Categories and benchmarks are fetched dynamically from admin-configured database records
-
 export default function AuthModal({
   isOpen,
   onClose,
@@ -70,11 +68,12 @@ export default function AuthModal({
               const floor = Number(defaultCat.min_daily_rate || 2000);
               const ceil = Number(defaultCat.max_daily_rate || 50000);
               const rec = Number(defaultCat.recommended_daily_rate || 15000);
-              const defaultRate = experienceLevel === 'entry'
-                ? Math.round((floor + (rec - floor) * 0.35) / 500) * 500
-                : experienceLevel === 'senior'
-                ? Math.round((rec + (ceil - rec) * 0.45) / 500) * 500
-                : rec;
+              const defaultRate =
+                experienceLevel === 'entry'
+                  ? Math.round((floor + (rec - floor) * 0.35) / 500) * 500
+                  : experienceLevel === 'senior'
+                  ? Math.round((rec + (ceil - rec) * 0.45) / 500) * 500
+                  : rec;
               setPricing(defaultRate.toString());
             } else {
               setCategoryName('');
@@ -112,11 +111,12 @@ export default function AuthModal({
     const floor = Number(catData.min_daily_rate || 2000);
     const ceil = Number(catData.max_daily_rate || 50000);
     const rec = Number(catData.recommended_daily_rate || 15000);
-    const newTierRate = experienceLevel === 'entry'
-      ? Math.round((floor + (rec - floor) * 0.35) / 500) * 500
-      : experienceLevel === 'senior'
-      ? Math.round((rec + (ceil - rec) * 0.45) / 500) * 500
-      : rec;
+    const newTierRate =
+      experienceLevel === 'entry'
+        ? Math.round((floor + (rec - floor) * 0.35) / 500) * 500
+        : experienceLevel === 'senior'
+        ? Math.round((rec + (ceil - rec) * 0.45) / 500) * 500
+        : rec;
     setPricing(newTierRate.toString());
   };
 
@@ -150,36 +150,63 @@ export default function AuthModal({
   if (!isOpen) return null;
 
   const resetModal = () => {
-    setStep(1);
+    setError('');
+    setDevOtpHint('');
     setMobile('');
     setName('');
     setEmail('');
     setPassword('');
     setConfirmPassword('');
-    setShowPassword(false);
-    setLoginIdentifier('');
     setBusinessName('');
+    setBio('');
     setLocation('');
     setPricing('');
-    setBio('');
-    setOtpDigits(['', '', '', '']);
+    setLoginIdentifier('');
     setAdminEmail('');
     setAdminPassword('');
-    setError('');
-    setDevOtpHint('');
-    setResendCooldown(0);
+    setOtpDigits(['', '', '', '']);
+    setStep(1);
     setRegisteredSession(null);
     setIsDepositModalOpen(false);
     onClose();
   };
 
-  // Helper to format clean 10-digit mobile
   const handleMobileChange = (e) => {
-    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-    setMobile(digits);
+    const val = e.target.value.replace(/\D/g, '');
+    if (val.length <= 10) setMobile(val);
   };
 
-  // Step 1: Send OTP for Login or Registration
+  const handleOtpDigitChange = (index, value) => {
+    const clean = value.replace(/\D/g, '');
+    const char = clean.slice(-1);
+    const next = [...otpDigits];
+    next[index] = char;
+    setOtpDigits(next);
+    if (char && index < 3) {
+      otpRefs[index + 1].current?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpRefs[index - 1].current?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+    if (!pasted) return;
+    const next = ['', '', '', ''];
+    for (let i = 0; i < pasted.length; i++) {
+      next[i] = pasted[i];
+    }
+    setOtpDigits(next);
+    const targetIdx = Math.min(pasted.length, 3);
+    otpRefs[targetIdx].current?.focus();
+  };
+
+  // Step 1: Submit Form (Registration or OTP Request)
   const handleSendOtp = async (e) => {
     if (e) e.preventDefault();
     setError('');
@@ -206,11 +233,15 @@ export default function AuthModal({
         return;
       }
       if (numPrice < catFloor) {
-        setError(`Daily rate of ₹${numPrice.toLocaleString()} is below the platform minimum of ₹${catFloor.toLocaleString()} for ${categoryName}.`);
+        setError(
+          `Daily rate of ₹${numPrice.toLocaleString()} is below the platform minimum of ₹${catFloor.toLocaleString()} for ${categoryName}.`
+        );
         return;
       }
       if (numPrice > catCeil) {
-        setError(`Daily rate of ₹${numPrice.toLocaleString()} exceeds the platform affordability limit of ₹${catCeil.toLocaleString()} for ${categoryName}. Please adjust within the recommended range.`);
+        setError(
+          `Daily rate of ₹${numPrice.toLocaleString()} exceeds the platform affordability limit of ₹${catCeil.toLocaleString()} for ${categoryName}. Please adjust within the recommended range.`
+        );
         return;
       }
     }
@@ -227,88 +258,26 @@ export default function AuthModal({
           email: authMode === 'register' ? email : undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to send verification code');
 
-      if (data.dev_otp) setDevOtpHint(data.dev_otp);
-      setResendCooldown(data.cooldown || 60);
-      setOtpDigits(['', '', '', '']);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
+
+      if (data.dev_otp) {
+        setDevOtpHint(data.dev_otp);
+      }
+
       setStep(2);
-      setTimeout(() => otpRefs[0]?.current?.focus(), 150);
+      setResendCooldown(60);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Resend OTP handler
-  const handleResendOtp = async () => {
-    if (resendCooldown > 0) return;
-    setError('');
-    setLoading(true);
-
-    try {
-      const res = await fetch('http://127.0.0.1:5000/api/v1/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mobile,
-          mode: authMode,
-          email: authMode === 'register' ? email : undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to resend verification code');
-
-      if (data.dev_otp) setDevOtpHint(data.dev_otp);
-      setResendCooldown(data.cooldown || 60);
-      setOtpDigits(['', '', '', '']);
-      setTimeout(() => otpRefs[0]?.current?.focus(), 100);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 4-Box PIN Handlers
-  const handleOtpDigitChange = (index, value) => {
-    const digit = value.replace(/\D/g, '').slice(-1);
-    const newDigits = [...otpDigits];
-    newDigits[index] = digit;
-    setOtpDigits(newDigits);
-
-    // Auto-advance to next box
-    if (digit && index < 3) {
-      otpRefs[index + 1]?.current?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
-      otpRefs[index - 1]?.current?.focus();
-    }
-  };
-
-  const handleOtpPaste = (e) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
-    if (!pasted) return;
-
-    const newDigits = ['', '', '', ''];
-    for (let i = 0; i < pasted.length; i++) {
-      newDigits[i] = pasted[i];
-    }
-    setOtpDigits(newDigits);
-
-    const nextIndex = Math.min(pasted.length, 3);
-    otpRefs[nextIndex]?.current?.focus();
   };
 
   // Step 2: Verify OTP
   const handleVerifyOtp = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     const fullOtp = otpDigits.join('');
     if (fullOtp.length !== 4) {
       setError('Please enter the full 4-digit verification code.');
@@ -344,6 +313,7 @@ export default function AuthModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Verification failed');
 
@@ -361,7 +331,33 @@ export default function AuthModal({
     }
   };
 
-  // Dual Auth: Password Login (for Customers, Vendors, and Admin)
+  // Resend OTP
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setError('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('http://127.0.0.1:5000/api/v1/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to resend code');
+
+      if (data.devOtp) {
+        setDevOtpHint(data.devOtp);
+      }
+      setResendCooldown(60);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Sign In with Password
   const handlePasswordLogin = async (e) => {
     e.preventDefault();
     setError('');
@@ -415,192 +411,114 @@ export default function AuthModal({
     }
   };
 
+  // Adaptive modal width: wider on desktop when vendor registration has 2 columns
+  const isVendorRegister = authMode === 'register' && accountType === 'vendor' && step === 1;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg p-6 sm:p-8 shadow-xl relative my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+      <div
+        className={`bg-white rounded-3xl w-full p-6 sm:p-8 shadow-2xl relative my-auto text-slate-900 border border-slate-100 max-h-[92vh] overflow-y-auto transition-all ${
+          isVendorRegister ? 'max-w-2xl' : 'max-w-md'
+        }`}
+      >
+        {/* Top-Right Close Button */}
         <button
           onClick={resetModal}
-          className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 text-base cursor-pointer"
+          className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer text-sm font-bold"
+          title="Close"
         >
           ✕
         </button>
 
-        {/* Tab Switcher: Sign In vs Create Account vs Admin */}
-        {step === 1 && authMode !== 'admin' && (
-          <div className="grid grid-cols-2 bg-slate-100 p-1 rounded-xl mb-6 border border-slate-200">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('login');
-                setError('');
-              }}
-              className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                authMode === 'login'
-                  ? 'bg-white text-blue-600 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('register');
-                setError('');
-              }}
-              className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                authMode === 'register'
-                  ? 'bg-white text-blue-600 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Create Account
-            </button>
-          </div>
-        )}
-
-        {step === 1 && authMode === 'admin' && (
-          <div className="flex items-center justify-between bg-slate-900 text-white px-3.5 py-2.5 rounded-xl mb-6 border border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="text-base">🛡️</span>
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">Admin Security Portal</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('login');
-                setError('');
-              }}
-              className="text-xs text-blue-400 hover:text-blue-300 font-medium cursor-pointer"
-            >
-              ← User Sign In
-            </button>
-          </div>
-        )}
-
-        {/* Header */}
-        <div className="mb-6">
-          <span
-            className={`text-[10px] uppercase font-bold px-2.5 py-1 rounded-full border ${
-              authMode === 'admin'
-                ? 'text-purple-700 bg-purple-50 border-purple-200'
-                : authMode === 'register' && accountType === 'vendor'
-                ? 'text-indigo-700 bg-indigo-50 border-indigo-200'
-                : 'text-blue-700 bg-blue-50 border-blue-200'
-            }`}
-          >
-            {authMode === 'admin'
-              ? 'System Administration'
-              : authMode === 'register'
-              ? accountType === 'vendor'
-                ? 'Creative Vendor Onboarding'
-                : 'Client Registration'
-              : 'Sign In Portal'}
-          </span>
-          <h2 className="text-xl font-bold text-slate-900 mt-2">
+        {/* Minimal Typography Header */}
+        <div className="mb-5">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             {step === 2
-              ? 'Verify Security Code'
+              ? 'Verify Code'
               : authMode === 'admin'
-              ? 'Admin Console Login'
+              ? 'Admin Login'
               : authMode === 'register'
-              ? accountType === 'vendor'
-                ? 'Register Creative Studio & Vendor'
-                : 'Register Client Account'
-              : 'Sign In to Your Account'}
+              ? 'Create Account'
+              : 'Welcome Back!'}
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-normal">
             {step === 2
               ? `Enter the 4-digit verification code sent to +91 ${mobile}`
               : authMode === 'admin'
-              ? 'Restricted access: Authorize with system administrator credentials'
+              ? 'Log in to access your administrative dashboard'
               : authMode === 'register'
               ? accountType === 'vendor'
-                ? 'Create your studio profile to showcase works and receive client bookings'
-                : 'Create your account to book verified talent and reserve production holds'
-              : 'Access your active bookings, production holds, and studio workspace'}
+                ? 'Sign up to showcase your studio and receive bookings.'
+                : 'Sign up to discover and book verified creative talent.'
+              : 'Log in to start creating stunning productions with ease.'}
           </p>
         </div>
 
         {/* Alert / Error */}
         {error && (
-          <div className="mb-4 text-xs text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-xl font-medium">
+          <div className="mb-4 text-xs text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl font-medium">
             {error}
           </div>
         )}
 
         {/* Dev OTP Box */}
         {devOtpHint && (
-          <div className="mb-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-center font-medium">
-            Verification Code: <strong className="font-mono text-sm tracking-wider text-amber-900">{devOtpHint}</strong>
+          <div className="mb-4 text-xs text-blue-900 bg-blue-50 border border-blue-200 p-2.5 rounded-xl text-center font-medium">
+            Verification Code: <strong className="font-mono text-sm tracking-wider text-blue-700">{devOtpHint}</strong>
           </div>
         )}
 
         {step === 1 ? (
           authMode === 'register' ? (
-            /* ================= REGISTER FORM ================= */
-            <form onSubmit={handleSendOtp} className="space-y-4">
-              {/* Account Type Selector: Client vs Vendor (Hidden when registering directly as a Vendor) */}
+            /* ================= REGISTER FORM (TWO FIELDS PER ROW + WHITE & BLUE THEME) ================= */
+            <form onSubmit={handleSendOtp} className="space-y-3.5">
+              {/* Account Type Selector (Clean Pill: Client vs Vendor) */}
               {!isRoleLocked && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-2">
-                    What type of account are you registering?
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setAccountType('customer')}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        accountType === 'customer'
-                          ? 'bg-blue-50/70 border-blue-500 ring-2 ring-blue-400/20'
-                          : 'bg-white border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <span className="text-sm block">👤</span>
-                      <span className="text-xs font-bold text-slate-900 block mt-1">Client / End User</span>
-                      <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
-                        Book talent & reserve gear
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setAccountType('vendor')}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        accountType === 'vendor'
-                          ? 'bg-indigo-50/70 border-indigo-500 ring-2 ring-indigo-400/20'
-                          : 'bg-white border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <span className="text-sm block">🎨</span>
-                      <span className="text-xs font-bold text-slate-900 block mt-1">Creative Vendor</span>
-                      <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
-                        Showcase studio & receive bookings
-                      </span>
-                    </button>
-                  </div>
+                <div className="flex bg-slate-100 p-1 rounded-xl mb-1">
+                  <button
+                    type="button"
+                    onClick={() => setAccountType('customer')}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      accountType === 'customer'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Client
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountType('vendor')}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      accountType === 'vendor'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Vendor
+                  </button>
                 </div>
               )}
 
-              {/* Vendor-Specific Fields */}
-              {accountType === 'vendor' && (
+              {/* Vendor Specific Inputs: 2 Columns Per Row */}
+              {accountType === 'vendor' ? (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      <label className="block text-xs font-semibold text-slate-800 mb-1">
                         Studio / Business Name *
                       </label>
                       <input
                         type="text"
                         required
-                        placeholder="e.g. Neon Lens Films"
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-600 transition-all"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      <label className="block text-xs font-semibold text-slate-800 mb-1">
                         Primary Specialty *
                       </label>
                       <select
@@ -608,11 +526,11 @@ export default function AuthModal({
                         onChange={(e) => handleCategoryChange(e.target.value)}
                         disabled={categoriesList.length === 0}
                         required
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-600 transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all font-medium cursor-pointer"
                       >
                         {categoriesList.length === 0 ? (
                           <option value="" disabled>
-                            No categories added yet (Admin must add categories)
+                            No categories configured
                           </option>
                         ) : (
                           categoriesList.map((cat) => (
@@ -622,38 +540,31 @@ export default function AuthModal({
                           ))
                         )}
                       </select>
-                      {categoriesList.length === 0 && (
-                        <p className="text-[11px] text-amber-700 mt-1">
-                          No specialties registered by Admin yet. Please configure categories in the Admin Console first.
-                        </p>
-                      )}
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Location / City *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Bangalore, Mumbai"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-600 transition-all"
-                    />
-                  </div>
-
-                  {/* Experience as Single Section & Standard Daily Rate */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Experience Level *
+                      <label className="block text-xs font-semibold text-slate-800 mb-1">
+                        City / Location *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-800 mb-1">
+                        Experience *
                       </label>
                       <select
                         value={experienceLevel}
                         onChange={(e) => handleSelectTier(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-600 transition-all cursor-pointer"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all font-medium cursor-pointer"
                       >
                         <option value="entry">1 – 2 Years</option>
                         <option value="mid">3 – 5 Years</option>
@@ -662,197 +573,266 @@ export default function AuthModal({
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-semibold text-slate-700">
-                          Standard Daily Rate (₹) *
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-xs font-semibold text-slate-800">
+                          Daily Rate (₹) *
                         </label>
                         {currentCatObj && (
                           <span className="text-[10px] text-slate-400 font-mono">
-                            ₹{catFloor.toLocaleString()} – ₹{catCeil.toLocaleString()}
+                            ₹{catFloor.toLocaleString()}–{catCeil.toLocaleString()}
                           </span>
                         )}
                       </div>
-                      <div className="relative">
-                        <span className="absolute left-3.5 top-2 text-xs font-bold text-slate-400">₹</span>
-                        <input
-                          type="number"
-                          required
-                          min={catFloor}
-                          max={catCeil}
-                          step="any"
-                          placeholder={catRec.toString()}
-                          value={pricing}
-                          onChange={(e) => setPricing(e.target.value)}
-                          className={`w-full bg-slate-50 border rounded-xl pl-8 pr-3.5 py-2 text-xs font-mono font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none transition-all ${
-                            pricing && (Number(pricing) < catFloor || Number(pricing) > catCeil)
-                              ? 'border-rose-400 ring-2 ring-rose-200 bg-rose-50/30'
-                              : 'border-slate-300 focus:border-indigo-600'
-                          }`}
-                        />
-                      </div>
+                      <input
+                        type="number"
+                        required
+                        min={catFloor}
+                        max={catCeil}
+                        step="any"
+                        value={pricing}
+                        onChange={(e) => setPricing(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-mono text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
                     </div>
                   </div>
 
-                  {/* Clean inline validation notices if entered rate is outside guardrails */}
-                  {pricing && Number(pricing) < catFloor && (
-                    <p className="text-[11px] text-rose-600 font-medium">
-                      Daily rate is below platform minimum (₹{catFloor.toLocaleString()}/day) for {categoryName}.
-                    </p>
-                  )}
-                  {pricing && Number(pricing) > catCeil && (
-                    <p className="text-[11px] text-rose-600 font-medium">
-                      Daily rate exceeds affordability ceiling (₹{catCeil.toLocaleString()}/day) for {categoryName}.
-                    </p>
-                  )}
-
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label className="block text-xs font-semibold text-slate-800 mb-1">
                       Bio / Studio Overview
                     </label>
-                    <textarea
-                      rows={2}
-                      placeholder="Brief description of your expertise, gear, and past productions..."
+                    <input
+                      type="text"
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-600 transition-all"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
                     />
+                  </div>
+
+                  {/* Owner details 2 in a row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-800 mb-1">
+                        Lead Artist / Owner Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-800 mb-1">
+                        Email Address *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Password & Confirm Password in 2 Columns */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-xs font-semibold text-slate-800">
+                          Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="text-[11px] text-blue-600 hover:text-blue-800 cursor-pointer"
+                        >
+                          {showPassword ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-800 mb-1">
+                        Confirm Password
+                      </label>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mobile Number */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-800 mb-1">
+                      Mobile Number *
+                    </label>
+                    <div className="flex gap-2">
+                      <span className="flex items-center px-3.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-600">
+                        +91
+                      </span>
+                      <input
+                        type="tel"
+                        required
+                        maxLength={10}
+                        value={mobile}
+                        onChange={handleMobileChange}
+                        className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 font-mono focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Client Registration Form: Clean 2 columns layout */
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-800 mb-1">
+                        Full Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-800 mb-1">
+                        Email Address *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-xs font-semibold text-slate-800">
+                          Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="text-[11px] text-blue-600 hover:text-blue-800 cursor-pointer"
+                        >
+                          {showPassword ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-800 mb-1">
+                        Confirm Password
+                      </label>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-800 mb-1">
+                      Mobile Number *
+                    </label>
+                    <div className="flex gap-2">
+                      <span className="flex items-center px-3.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-600">
+                        +91
+                      </span>
+                      <input
+                        type="tel"
+                        required
+                        maxLength={10}
+                        value={mobile}
+                        onChange={handleMobileChange}
+                        className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 font-mono focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+                      />
+                    </div>
                   </div>
                 </>
               )}
 
-              {/* Owner Info (Both Client & Vendor) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    {accountType === 'vendor' ? 'Lead Artist / Owner Name *' : 'Full Name *'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Mohammed Jasir"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address *</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. jasir@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Password for Dual Auth */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Create Password <span className="text-slate-400 font-normal">(Optional)</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="text-[10px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
-                    >
-                      {showPassword ? 'Hide' : 'Show'}
-                    </button>
-                  </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Min 6 chars (for password login)"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Confirm Password
-                  </label>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Re-enter password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Mobile Number (for verification & OTP login) *
-                </label>
-                <div className="flex gap-2">
-                  <span className="flex items-center px-3 bg-slate-100 border border-slate-300 rounded-xl text-xs font-semibold text-slate-600">
-                    +91
-                  </span>
-                  <input
-                    type="tel"
-                    required
-                    maxLength={10}
-                    placeholder="10-digit mobile"
-                    value={mobile}
-                    onChange={handleMobileChange}
-                    className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
-                  />
-                </div>
-              </div>
-
+              {/* Blue CTA Button */}
               <button
                 type="submit"
                 disabled={loading || (accountType === 'vendor' && (!categoryName || categoriesList.length === 0))}
-                className={`w-full py-3 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm ${
-                  accountType === 'vendor'
-                    ? 'bg-indigo-600 hover:bg-indigo-700'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+                className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition-all disabled:opacity-50 cursor-pointer shadow-md hover:shadow-blue-500/20"
               >
                 {loading
-                  ? 'Sending Verification Code...'
+                  ? 'Please wait...'
                   : accountType === 'vendor'
-                  ? categoriesList.length === 0
-                    ? 'No Categories Configured (Admin Must Add)'
-                    : 'Register Vendor & Verify (OTP)'
-                  : 'Register as Client (OTP)'}
+                  ? 'Register as Vendor'
+                  : 'Register as Client'}
               </button>
+
+              {/* Bottom Switch Link */}
+              <div className="text-center pt-2 text-xs text-slate-500">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('login');
+                    setError('');
+                  }}
+                  className="font-bold text-blue-600 hover:underline cursor-pointer ml-1"
+                >
+                  Log in here
+                </button>
+              </div>
             </form>
           ) : authMode === 'admin' ? (
-            /* ================= DEDICATED ADMIN FORM ================= */
-            <form onSubmit={handleAdminLogin} className="space-y-4">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 leading-relaxed">
-                Enter administrator credentials to manage platform listings, review vendor deposits, and moderate system users.
-              </div>
-
+            /* ================= ADMIN LOGIN ================= */
+            <form onSubmit={handleAdminLogin} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-800 mb-1">
                   Administrator Email
                 </label>
                 <input
                   type="email"
                   required
-                  placeholder="admin@creativehub.com"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-purple-600 transition-all"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
                 />
               </div>
 
               <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-700">Security Password</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-semibold text-slate-800">
+                    Password
+                  </label>
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="text-[11px] text-purple-600 hover:text-purple-800 font-medium cursor-pointer"
+                    className="text-[11px] text-blue-600 hover:text-blue-800 cursor-pointer"
                   >
                     {showPassword ? 'Hide' : 'Show'}
                   </button>
@@ -860,51 +840,51 @@ export default function AuthModal({
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
-                  placeholder="••••••••"
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-purple-600 transition-all"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-slate-900 hover:bg-black text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+                className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition-all disabled:opacity-50 cursor-pointer shadow-md hover:shadow-blue-500/20"
               >
-                {loading ? 'Authenticating Admin...' : 'Authenticate & Enter Admin Console'}
+                {loading ? 'Authenticating...' : 'Sign In as Admin'}
               </button>
 
-              <div className="text-center pt-2">
+              <div className="text-center pt-2 text-xs text-slate-500">
                 <button
                   type="button"
                   onClick={() => {
                     setAuthMode('login');
                     setError('');
                   }}
-                  className="text-xs text-slate-500 hover:text-slate-800 cursor-pointer"
+                  className="font-semibold text-blue-600 hover:underline cursor-pointer"
                 >
-                  &larr; Back to Regular Sign In
+                  Back to User Login
                 </button>
               </div>
             </form>
           ) : (
-            /* ================= SIGN IN FORM (DUAL AUTH: OTP OR PASSWORD) ================= */
+            /* ================= LOGIN FORM (WHITE AND BLUE THEME) ================= */
             <div className="space-y-4">
-              <div className="grid grid-cols-2 bg-slate-100 p-1 rounded-xl mb-4 border border-slate-200">
+              {/* Method Switch: Mobile (OTP) vs Password */}
+              <div className="flex bg-slate-100 p-1 rounded-xl mb-1">
                 <button
                   type="button"
                   onClick={() => {
                     setLoginMethod('otp');
                     setError('');
                   }}
-                  className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     loginMethod === 'otp'
-                      ? 'bg-white text-blue-600 shadow-xs'
+                      ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  📱 Mobile (OTP)
+                  Mobile Number (OTP)
                 </button>
                 <button
                   type="button"
@@ -912,69 +892,70 @@ export default function AuthModal({
                     setLoginMethod('password');
                     setError('');
                   }}
-                  className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     loginMethod === 'password'
-                      ? 'bg-white text-blue-600 shadow-xs'
+                      ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  🔑 Password
+                  Password Login
                 </button>
               </div>
 
               {loginMethod === 'otp' ? (
-                <form onSubmit={handleSendOtp} className="space-y-4">
+                <form onSubmit={handleSendOtp} className="space-y-3.5">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Registered Mobile Number
+                    <label className="block text-xs font-semibold text-slate-800 mb-1">
+                      Mobile Number
                     </label>
                     <div className="flex gap-2">
-                      <span className="flex items-center px-3 bg-slate-100 border border-slate-300 rounded-xl text-xs font-semibold text-slate-600">
+                      <span className="flex items-center px-3.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-600">
                         +91
                       </span>
                       <input
                         type="tel"
                         required
                         maxLength={10}
-                        placeholder="10-digit mobile"
                         value={mobile}
                         onChange={handleMobileChange}
-                        className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                        className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 font-mono focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
                       />
                     </div>
                   </div>
 
+                  {/* Blue Pill Button */}
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+                    className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition-all disabled:opacity-50 cursor-pointer shadow-md hover:shadow-blue-500/20"
                   >
-                    {loading ? 'Sending Code...' : 'Send One-Time Password'}
+                    {loading ? 'Sending Code...' : 'Login with OTP'}
                   </button>
                 </form>
               ) : (
-                <form onSubmit={handlePasswordLogin} className="space-y-4">
+                <form onSubmit={handlePasswordLogin} className="space-y-3.5">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Email Address or Mobile Number
+                    <label className="block text-xs font-semibold text-slate-800 mb-1">
+                      Email or Mobile
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. user@example.com or 9876543210"
                       value={loginIdentifier}
                       onChange={(e) => setLoginIdentifier(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
                     />
                   </div>
 
                   <div>
-                    <div className="flex justify-between items-center mb-1.5">
-                      <label className="block text-xs font-semibold text-slate-700">Password</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs font-semibold text-slate-800">
+                        Password
+                      </label>
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="text-[11px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+                        className="text-[11px] text-blue-600 hover:text-blue-800 cursor-pointer"
                       >
                         {showPassword ? 'Hide' : 'Show'}
                       </button>
@@ -982,33 +963,49 @@ export default function AuthModal({
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
-                      placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 transition-all"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
                     />
                   </div>
 
+                  {/* Blue Pill Button */}
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+                    className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition-all disabled:opacity-50 cursor-pointer shadow-md hover:shadow-blue-500/20"
                   >
-                    {loading ? 'Signing In...' : 'Sign In with Password'}
+                    {loading ? 'Signing In...' : 'Login'}
                   </button>
                 </form>
               )}
 
-              <div className="pt-2 border-t border-slate-200/60 text-center">
+              {/* Bottom "Don't have an account? Sign up here" */}
+              <div className="text-center pt-2 text-xs text-slate-500">
+                Don't have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('register');
+                    setError('');
+                  }}
+                  className="font-bold text-blue-600 hover:underline cursor-pointer ml-1"
+                >
+                  Sign up here
+                </button>
+              </div>
+
+              {/* Subtle Admin Link */}
+              <div className="text-center pt-1">
                 <button
                   type="button"
                   onClick={() => {
                     setAuthMode('admin');
                     setError('');
                   }}
-                  className="text-[11px] text-slate-500 hover:text-slate-800 cursor-pointer font-medium"
+                  className="text-[11px] text-slate-400 hover:text-blue-600 cursor-pointer"
                 >
-                  🛡️ System Administrator? <span className="text-blue-600 underline">Access Admin Portal</span>
+                  Administrator Portal
                 </button>
               </div>
             </div>
@@ -1017,7 +1014,7 @@ export default function AuthModal({
           /* ================= STEP 2: VERIFY OTP (4-BOX SEGMENTED INPUT + RESEND TIMER) ================= */
           <form onSubmit={handleVerifyOtp} className="space-y-5">
             <div>
-              <label className="block text-center text-xs font-semibold text-slate-700 mb-3">
+              <label className="block text-center text-xs font-semibold text-slate-700 mb-4">
                 Enter 4-Digit Verification PIN
               </label>
               <div className="flex justify-center gap-3">
@@ -1033,7 +1030,7 @@ export default function AuthModal({
                     onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                     onPaste={handleOtpPaste}
-                    className="w-13 h-13 text-center font-mono text-2xl font-bold rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                    className="w-12 h-12 text-center font-mono text-xl font-bold rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none transition-all"
                   />
                 ))}
               </div>
@@ -1052,7 +1049,7 @@ export default function AuthModal({
                   type="button"
                   onClick={handleResendOtp}
                   disabled={loading}
-                  className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer underline disabled:opacity-50"
+                  className="font-semibold text-blue-600 hover:underline cursor-pointer disabled:opacity-50"
                 >
                   Resend Verification Code
                 </button>
@@ -1062,11 +1059,7 @@ export default function AuthModal({
             <button
               type="submit"
               disabled={loading || otpDigits.join('').length !== 4}
-              className={`w-full py-3 text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm ${
-                accountType === 'vendor'
-                  ? 'bg-indigo-600 hover:bg-indigo-700'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition-all disabled:opacity-50 cursor-pointer shadow-md hover:shadow-blue-500/20"
             >
               {loading
                 ? 'Verifying...'
@@ -1083,49 +1076,43 @@ export default function AuthModal({
                 setStep(1);
                 setError('');
               }}
-              className="w-full text-center text-xs text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+              className="w-full text-center text-xs text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
             >
-              &larr; Back to details
+              Back to details
             </button>
           </form>
         ) : (
           /* ================= STEP 3: VENDOR ONBOARDING DEPOSIT CHOICE ================= */
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div className="text-center">
-              <div className="w-12 h-12 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center mx-auto text-xl font-bold mb-3">
-                ✓
-              </div>
-              <h3 className="text-lg font-bold text-slate-900">
-                Studio Registration Complete!
+              <h3 className="text-xl font-bold text-slate-900">
+                Registration Complete
               </h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                Welcome, <span className="font-semibold text-slate-800">{registeredSession?.user?.name}</span>! One final step to list your studio on the marketplace.
+                Welcome, <span className="font-semibold text-slate-800">{registeredSession?.user?.name}</span>. Pay the onboarding deposit to activate your studio profile.
               </p>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Listing Deposit:</span>
+            <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600 font-semibold">Listing Deposit:</span>
                 <span className="font-bold text-slate-900 font-mono text-sm">₹2,000.00</span>
               </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Marketplace Status:</span>
-                <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px] uppercase">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600 font-semibold">Status:</span>
+                <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-[10px] uppercase border border-blue-200">
                   Pending Deposit
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 border-t border-slate-200/60 pt-2 leading-relaxed">
-                Only paid studios are showcased on the landing page and eligible to receive verified client bookings. You can pay now or pay anytime from your Studio Dashboard.
-              </p>
             </div>
 
-            <div className="space-y-2.5 pt-1">
+            <div className="space-y-2 pt-2">
               <button
                 type="button"
                 onClick={() => setIsDepositModalOpen(true)}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition-all shadow-md cursor-pointer hover:shadow-blue-500/20"
               >
-                <span>💳 Pay Onboarding Deposit Now (₹2,000)</span>
+                Pay Onboarding Deposit (₹2,000)
               </button>
 
               <button
@@ -1136,9 +1123,9 @@ export default function AuthModal({
                     resetModal();
                   }
                 }}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-xl transition-all cursor-pointer"
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-full transition-all cursor-pointer"
               >
-                Pay Later & Go to Studio Dashboard &rarr;
+                Pay Later & Go to Dashboard
               </button>
             </div>
           </div>

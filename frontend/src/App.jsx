@@ -54,6 +54,20 @@ export default function App() {
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
 
+  // Sync user profile updates (such as avatar uploads)
+  useEffect(() => {
+    const handleUserUpdated = () => {
+      try {
+        const stored = sessionStorage.getItem('user');
+        if (stored) {
+          setUser(JSON.parse(stored));
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('user_profile_updated', handleUserUpdated);
+    return () => window.removeEventListener('user_profile_updated', handleUserUpdated);
+  }, []);
+
   useEffect(() => {
     try {
       sessionStorage.setItem('booking_cart', JSON.stringify(cart));
@@ -295,6 +309,7 @@ export default function App() {
             onOpenAuth={handleOpenAuth}
             onVendorUpdated={handleVendorStatusChanged}
             onOpenChat={handleOpenChat}
+            onLogout={handleLogout}
           />
         ) : currentView === 'customer_projects' ? (
           <CustomerDashboard

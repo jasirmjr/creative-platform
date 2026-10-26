@@ -48,6 +48,7 @@ const syncBlueprintSchema = async () => {
       ALTER TABLE bookings ADD CONSTRAINT bookings_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES vendor_profiles(id) ON DELETE CASCADE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT;
       ALTER TABLE users ALTER COLUMN mobile TYPE VARCHAR(64);
       ALTER TABLE users ALTER COLUMN email TYPE VARCHAR(255);
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_type VARCHAR(50) DEFAULT 'advance';
