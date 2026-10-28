@@ -1,29 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Search,
-  Star,
-  MapPin,
-  CheckCircle,
-  MessageSquare,
-  ShoppingCart,
   ArrowRight,
-  X,
-  Play,
-  ShieldCheck,
-  Zap,
-  Award,
-  Users,
   Camera,
-  Film,
-  Video,
-  Layers,
-  Sparkles,
-  TrendingUp,
-  ChevronRight,
-  CheckCircle2,
-  ArrowUpRight,
-  ChevronDown,
   Check,
+  Film,
+  Layers,
+  MessageSquare,
+  Mic,
+  Package,
+  ShieldCheck,
+  UserCheck,
+  Video,
 } from 'lucide-react';
 import BookingModal from './BookingModal';
 import VendorModal from './VendorModal';
@@ -43,17 +30,16 @@ export default function Dashboard({
   // Approved Vendors State
   const [vendors, setVendors] = useState([]);
   const [categoriesList, setCategoriesList] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [activeDiscipline, setActiveDiscipline] = useState('');
   const [vendorSearch, setVendorSearch] = useState('');
   const [loadingVendors, setLoadingVendors] = useState(true);
 
   const [bookingItem, setBookingItem] = useState(null);
   const [selectedProfessional, setSelectedProfessional] = useState(null);
-  const [activeBookingsCount, setActiveBookingsCount] = useState(0);
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
+  const [cityFilter, setCityFilter] = useState('');
+  const [shootDates, setShootDates] = useState({ start: '', end: '' });
 
   const token = propToken || sessionStorage.getItem('token');
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
@@ -85,12 +71,11 @@ export default function Dashboard({
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setCategoriesList(data.data);
-        if (data.data.length > 0) {
-          setActiveDiscipline((prev) => prev || data.data[0].name);
-        }
       }
     } catch (err) {
       console.error('Failed to load categories:', err);
+    } finally {
+      setLoadingCategories(false);
     }
   };
 
@@ -98,34 +83,6 @@ export default function Dashboard({
     fetchVendors();
     fetchCategories();
   }, []);
-
-  // Handle clicking outside custom dropdown
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setIsDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Load User Bookings Count
-  useEffect(() => {
-    async function loadUserBookings() {
-      if (!token) return;
-      try {
-        const res = await fetch('/api/v1/bookings/my', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const data = await res.json();
-        if (data.success) setActiveBookingsCount(data.count);
-      } catch (err) {
-        console.error('Failed to load bookings:', err);
-      }
-    }
-    loadUserBookings();
-  }, [token]);
 
   const handleBookClick = (item) => {
     if (!user) {
@@ -149,13 +106,6 @@ export default function Dashboard({
     alert(`Application submitted for "${profile.business_name}"! Status: Under Review.`);
   };
 
-  const stats = [
-    { label: 'Active Talent & Studios', value: vendors.length.toString(), change: 'Verified Production Partners' },
-    { label: 'Marketplace Trust', value: vendors.length > 0 ? '100% VETTED' : 'READY', change: 'Identity & Portfolios Verified' },
-    { label: 'Active Bookings', value: activeBookingsCount.toString(), change: user ? 'Tracked in DB' : 'Sign in to track' },
-    { label: 'Account Role', value: user?.role ? user.role.toUpperCase() : 'GUEST', change: user ? 'Authenticated' : 'Sign in required' },
-  ];
-
   // Helper to format category names (e.g., "video editor" -> "Video Editor")
   const formatCategoryName = (name) => {
     if (!name) return '';
@@ -177,6 +127,12 @@ export default function Dashboard({
     if (n.includes('edit') || n.includes('post') || n.includes('color')) {
       return <Film className="w-5 h-5" />;
     }
+    if (n.includes('sound') || n.includes('audio') || n.includes('music')) {
+      return <Mic className="w-5 h-5" />;
+    }
+    if (n.includes('gear') || n.includes('rental') || n.includes('equipment')) {
+      return <Package className="w-5 h-5" />;
+    }
     return <Layers className="w-5 h-5" />;
   };
 
@@ -184,7 +140,7 @@ export default function Dashboard({
   const getCategoryThumbnail = (name) => {
     const n = (name || '').toLowerCase();
     if (n.includes('cinemat') || n.includes('camera') || n.includes('dp')) {
-      return 'https://images.unsplash.com/photo-1579632652768-6cb9dcf85912?auto=format&fit=crop&w=1200&q=80';
+      return 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80';
     }
     if (n.includes('photo')) {
       return 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?auto=format&fit=crop&w=1200&q=80';
@@ -192,7 +148,7 @@ export default function Dashboard({
     if (n.includes('edit') || n.includes('post') || n.includes('color')) {
       return 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=1200&q=80';
     }
-    return 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=1200&q=80';
+    return 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=1200&q=80';
   };
 
   // Helper to match vendor skills with category
@@ -205,9 +161,12 @@ export default function Dashboard({
 
   // Filter vendors based on search query
   const searchFilter = (vendorList) => {
-    if (!vendorSearch.trim()) return vendorList;
+    const inCity = cityFilter
+      ? vendorList.filter((v) => (v.location || '').trim().toLowerCase() === cityFilter.toLowerCase())
+      : vendorList;
+    if (!vendorSearch.trim()) return inCity;
     const q = vendorSearch.toLowerCase();
-    return vendorList.filter((v) =>
+    return inCity.filter((v) =>
       (v.business_name || '').toLowerCase().includes(q) ||
       (v.owner_name || '').toLowerCase().includes(q) ||
       (v.skills || '').toLowerCase().includes(q) ||
@@ -215,703 +174,588 @@ export default function Dashboard({
     );
   };
 
-  // Group vendors by Category
-  const categorySections = categoriesList
-    .map((cat) => {
-      const catVendors = searchFilter(vendors.filter((v) => matchesCategory(v.skills, cat.name)));
-      return {
-        ...cat,
-        vendors: catVendors,
-      };
-    })
-    .filter((sec) => sec.vendors.length > 0 || !vendorSearch);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const shootStart = shootDates.start || tomorrow;
+  const shootEnd = shootDates.end && shootDates.end >= shootStart ? shootDates.end : shootStart;
 
-  // Uncategorized or general vendors if any
-  const uncategorizedVendors = searchFilter(
-    vendors.filter((v) => !categoriesList.some((c) => matchesCategory(v.skills, c.name)))
+  const cityOptions = [...new Set(vendors.map((v) => (v.location || '').trim()).filter(Boolean))];
+
+  const vendorCategory = (vendor) => categoriesList.find((c) => matchesCategory(vendor.skills, c.name));
+
+  const categoryCount = (catName) => vendors.filter((v) => matchesCategory(v.skills, catName)).length;
+
+  // Departments ranked by how many verified studios they have
+  const rankedCategories = [...categoriesList].sort((a, b) => categoryCount(b.name) - categoryCount(a.name));
+  const leadCategory = rankedCategories[0];
+  const sideCategories = rankedCategories.slice(1, 5);
+
+  // Top-rated studio is the one spotlighted in the hero
+  const featuredVendor = [...vendors].sort((a, b) => Number(b.avg_rating || 0) - Number(a.avg_rating || 0))[0];
+
+  const directoryVendors = searchFilter(
+    selectedCategory === 'all' ? vendors : vendors.filter((v) => matchesCategory(v.skills, selectedCategory))
   );
 
+  const toProfessional = (vendor) => ({
+    ...vendor,
+    title: vendor.business_name,
+    resource_type: 'talent',
+    vendor_id: vendor.id,
+    base_price: vendor.pricing || 15000,
+    pricing_unit: vendor.pricing_unit || 'day',
+    provider_name: vendor.owner_name,
+    start_date: shootStart,
+    end_date: shootEnd,
+  });
+
+  const formatShortDate = (iso) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+
+  const formatRateK = (amount) => {
+    const n = Number(amount || 0);
+    return n >= 1000 ? `₹${Math.round(n / 1000)}k` : `₹${n}`;
+  };
+
+  const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+
+  const howItWorks = [
+    { step: '01', title: 'Brief', left: 30, items: [['Post your requirement', 110], ['Match with verified crews', 40], ['Compare quotes', 150]] },
+    { step: '02', title: 'Book', left: 400, items: [['Chat directly with the studio', 470], ['Pay advance into escrow', 440, true], ['Lock shoot dates', 530]] },
+    { step: '03', title: 'Wrap', left: 770, items: [['Shoot day check-in', 860], ['Receive files in the vault', 810], ['Release payment', 880]] },
+  ];
+
   return (
-    <div className="w-full min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* ================= 1. HERO SECTION (REFERENCE: VERIDIAN HERO LAYOUT) ================= */}
-      <section className="relative w-full min-h-[92vh] flex flex-col justify-between overflow-hidden bg-slate-950">
-        {/* Background Image with Dark Contrast Overlay */}
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-1000 scale-105"
-          style={{
-            backgroundImage: `url('https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=2600&q=85')`,
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/75 to-slate-950/50" />
+    <div id="ch-top" className="w-full min-h-screen bg-ch-bg text-ch-text font-sans text-[15px] antialiased">
+      <div className="ch-grain" />
 
-       
+      {/* ================= 1. HERO ================= */}
+      <section
+        className="relative overflow-hidden pt-[150px] sm:pt-[176px]"
+        style={{ background: 'radial-gradient(120% 60% at 50% 0%, #0b1a33 0%, #04070d 60%)' }}
+      >
+        <div className="ch-glow w-[900px] h-[500px] left-1/2 -bottom-[200px] -translate-x-1/2 bg-[#1f6fff] opacity-55" />
+        <div className="ch-glow w-[500px] h-[260px] left-1/2 -bottom-[60px] -translate-x-1/2 bg-[#a9cbff] opacity-35" />
 
-        {/* Hero Content Left Aligned */}
-        <div className="relative z-10 flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-16 max-w-4xl">
-         
+        <div className="relative max-w-[1200px] mx-auto px-5 sm:px-10 text-center">
+          <div className="ch-glass ch-pill !py-2 !pl-2.5 !pr-[18px] !text-[13px] !text-ch-muted !whitespace-normal">
+            <span className="w-2 h-2 rounded-full bg-[#4ade80] shadow-[0_0_10px_#4ade80] shrink-0" />
+            {vendors.length > 0
+              ? `${vendors.length} verified ${vendors.length === 1 ? 'crew' : 'crews'}${cityOptions.length ? ` across ${cityOptions.slice(0, 3).join(', ')}` : ''}`
+              : 'Verified crews & rental gear across India'}
+          </div>
 
-          {/* Heading - Clean & Standard Typography with Poppins */}
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold font-heading text-white tracking-tight leading-[1.08] mb-6">
-            Hire Top Creators. <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-300">
-              Produce Seamlessly.
-            </span>
+          <h1 className="ch-display text-[52px] sm:text-[84px] lg:text-[112px] mt-8">
+            <span className="ch-silver">Book the crew.</span>
+            <br />
+            <span className="ch-dim">Roll the camera.</span>
           </h1>
 
-          <p className="text-base sm:text-lg text-slate-300 font-normal leading-relaxed mb-8 max-w-xl">
-            Directly book verified cinematographers, video editors, high-end rental gear, and production specialists with escrow guarantees.
+          <p className="text-ch-muted text-base sm:text-lg leading-relaxed max-w-[560px] mx-auto mt-7">
+            Verified cinematographers, editors and rental gear — booked in one place, with your advance held safely in escrow until wrap.
           </p>
 
-          {/* CTA Buttons */}
-          <div className="flex flex-wrap items-center gap-4">
-            {isAdmin ? (
-              <button
-                onClick={onNavigateToAdmin}
-                className="px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition-all shadow-lg hover:shadow-blue-500/30 cursor-pointer flex items-center gap-2"
+          {/* Search */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              scrollToId('ch-studios');
+            }}
+            className="ch-glass mt-11 mx-auto max-w-[820px] rounded-[28px] sm:rounded-full p-2 flex flex-col sm:flex-row sm:items-center text-left"
+          >
+            <label className="flex-[1.3] px-6 py-2 sm:border-r border-ch-line">
+              <span className="block text-[11px] text-ch-faint uppercase tracking-[0.12em]">Role or gear</span>
+              <input
+                type="text"
+                value={vendorSearch}
+                onChange={(e) => setVendorSearch(e.target.value)}
+                placeholder="Cinematographer"
+                className="ch-field-input mt-[3px]"
+              />
+            </label>
+            <label className="flex-1 px-6 py-2 sm:border-r border-ch-line">
+              <span className="block text-[11px] text-ch-faint uppercase tracking-[0.12em]">City</span>
+              <select
+                value={cityFilter}
+                onChange={(e) => setCityFilter(e.target.value)}
+                className="ch-field-input mt-[3px] cursor-pointer appearance-none"
               >
-                <span>Open Admin Console</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            ) : user?.role === 'vendor' ? (
-              <button
-                onClick={onNavigateToStudio}
-                className="px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition-all shadow-lg hover:shadow-blue-500/30 cursor-pointer flex items-center gap-2"
-              >
-                <span>Go to Studio Dashboard</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={() => {
-                    const elem = document.getElementById('featured-categories');
-                    if (elem) elem.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="px-7 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition-all shadow-lg hover:shadow-blue-500/30 cursor-pointer flex items-center gap-2 group"
-                >
-                  <span>Explore Talent & Studios</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
+                <option value="" className="bg-[#08111f]">All cities</option>
+                {cityOptions.map((city) => (
+                  <option key={city} value={city} className="bg-[#08111f]">{city}</option>
+                ))}
+              </select>
+            </label>
+            <div className="flex-1 px-6 py-2">
+              <span className="block text-[11px] text-ch-faint uppercase tracking-[0.12em]">Shoot dates</span>
+              <div className="flex items-center gap-1.5 mt-[3px] text-[15px]">
+                <label className="relative cursor-pointer">
+                  <span>{formatShortDate(shootStart)}</span>
+                  <input
+                    type="date"
+                    min={tomorrow}
+                    value={shootStart}
+                    onChange={(e) => setShootDates((d) => ({ ...d, start: e.target.value }))}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                </label>
+                <span className="text-ch-faint">–</span>
+                <label className="relative cursor-pointer">
+                  <span>{formatShortDate(shootEnd)}</span>
+                  <input
+                    type="date"
+                    min={shootStart}
+                    value={shootEnd}
+                    onChange={(e) => setShootDates((d) => ({ ...d, end: e.target.value }))}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                </label>
+              </div>
+            </div>
+            <button type="submit" className="ch-btn ch-btn-blue !h-14 !px-[30px] mt-2 sm:mt-0">
+              Find crew
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+        </div>
 
-                <button
-                  onClick={() => onOpenAuth('register', 'vendor')}
-                  className="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer flex items-center gap-2"
-                >
-                  <span>Join as Vendor</span>
-                </button>
-              </>
-            )}
+        {/* Stage */}
+        <div className="relative max-w-[1200px] mx-auto px-5 sm:px-10 h-[420px] sm:h-[560px] mt-[72px]">
+          <div
+            className="ch-display hidden sm:block absolute -left-10 -right-10 bottom-[120px] text-center text-[150px] lg:text-[228px] font-semibold tracking-[-0.06em] whitespace-nowrap select-none"
+            style={{
+              color: 'transparent',
+              background: 'linear-gradient(180deg, rgba(59,139,255,0.35), rgba(59,139,255,0.02))',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+            }}
+          >
+            PRODUCTION
+          </div>
+
+          <div className="ch-duo absolute left-1/2 -translate-x-1/2 bottom-0 w-[300px] sm:w-[440px] h-[400px] sm:h-[540px] rounded-t-[32px]">
+            <img src="https://images.unsplash.com/photo-1542038784456-1ea8e935640e?auto=format&fit=crop&w=900&q=80" alt="Cinematographer on set" />
+          </div>
+
+          {featuredVendor && (
+            <button
+              type="button"
+              onClick={() => setSelectedProfessional(toProfessional(featuredVendor))}
+              className="ch-glass hidden lg:block absolute left-10 top-[90px] w-[280px] rounded-3xl p-[18px] text-left cursor-pointer hover:border-white/20 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="ch-duo w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-ch-ice text-sm font-medium">
+                  {featuredVendor.profile_image ? (
+                    <img src={featuredVendor.profile_image} alt="" />
+                  ) : (
+                    (featuredVendor.owner_name || featuredVendor.business_name || 'C').charAt(0)
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[15px] font-medium truncate">{featuredVendor.owner_name || featuredVendor.business_name}</div>
+                  <div className="text-xs text-ch-muted truncate">
+                    {formatCategoryName(vendorCategory(featuredVendor)?.name || featuredVendor.skills || 'Creative')} · {featuredVendor.location || 'India'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-between mt-4 pt-3.5 border-t border-ch-line text-[13px]">
+                <span className="text-ch-muted">
+                  ★ <span className="text-ch-text">{featuredVendor.avg_rating || '5.0'}</span> · {featuredVendor.review_count || 0} reviews
+                </span>
+                <span>
+                  ₹{Number(featuredVendor.pricing || 15000).toLocaleString('en-IN')}
+                  <span className="text-ch-faint">/{featuredVendor.pricing_unit || 'day'}</span>
+                </span>
+              </div>
+            </button>
+          )}
+
+          <div className="ch-glass ch-pill hidden lg:inline-flex absolute left-[110px] bottom-[120px] !text-base !py-3.5 !pl-4 !pr-[26px]">
+            <span className="ch-dot" /> Booking confirmed
+          </div>
+
+          <div className="ch-glass hidden lg:block absolute right-10 top-[60px] w-[220px] rounded-3xl p-[22px] text-center">
+            <div className="text-base font-medium">Escrow</div>
+            <div className="text-xs text-ch-muted leading-normal mt-1.5">Advance held safely until the shoot wraps.</div>
+            <div className="ch-ring mx-auto mt-[18px]">
+              <svg width="88" height="88" viewBox="0 0 88 88">
+                <circle cx="44" cy="44" r="36" stroke="rgba(255,255,255,0.08)" strokeWidth="4" fill="none" />
+                <circle cx="44" cy="44" r="36" stroke="#8fc0ff" strokeWidth="4" fill="none" strokeLinecap="round" strokeDasharray="226" strokeDashoffset="56" />
+              </svg>
+              <span className="ch-display text-xl">₹45k</span>
+            </div>
+          </div>
+
+          <div className="ch-glass ch-pill hidden lg:inline-flex absolute right-[90px] bottom-[150px]">
+            <span className="ch-dot" /> ARRI Alexa Mini LF · Available
           </div>
         </div>
-
       </section>
 
-      {/* ================= 2. PARTNER / SPECIALTY BRAND TICKER BAR (REFERENCE TICKER) ================= */}
-      <section className="w-full bg-white border-b border-slate-200 py-6 px-6 sm:px-12 lg:px-16 overflow-x-auto">
-        <div className="flex items-center justify-between gap-8 min-w-max text-xs font-semibold text-slate-500 uppercase tracking-widest">
-          <span className="text-slate-400">Production Standards:</span>
-          <span className="flex items-center gap-2 hover:text-blue-600 transition-colors">
-            <ShieldCheck className="w-4 h-4 text-blue-600" /> Identity Vetted
-          </span>
-          <span className="flex items-center gap-2 hover:text-blue-600 transition-colors">
-            <Zap className="w-4 h-4 text-blue-600" /> Instant Hold Requests
-          </span>
-          <span className="flex items-center gap-2 hover:text-blue-600 transition-colors">
-            <Award className="w-4 h-4 text-blue-600" /> Escrow Advance Guard
-          </span>
-          <span className="flex items-center gap-2 hover:text-blue-600 transition-colors">
-            <Users className="w-4 h-4 text-blue-600" /> Direct Studio Chat
-          </span>
+      {/* ================= 2. GEAR STRIP ================= */}
+      <section className="border-y border-ch-line bg-ch-bg overflow-hidden">
+        <div className="max-w-[1200px] mx-auto px-5 sm:px-10 flex items-center justify-between gap-8 h-24 overflow-x-auto no-scrollbar">
+          <span className="ch-eyebrow whitespace-nowrap">Gear on the platform</span>
+          <div className="flex gap-10 lg:gap-14 ch-display !font-medium !tracking-[-0.02em] text-[22px] text-[#4a5668] whitespace-nowrap">
+            <span>ARRI</span><span>RED</span><span>Sony Cinema</span><span>Blackmagic</span><span>DJI</span><span>Aputure</span>
+          </div>
         </div>
       </section>
 
-      {/* ================= 2.5 PLATFORM METRICS COMMAND STRIP (JUST ABOVE PRODUCTION DISCIPLINES) ================= */}
-      <section className="w-full px-6 sm:px-12 lg:px-16 py-10 bg-slate-950 text-white border-y border-slate-800">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-          <div className="max-w-md">
-           
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
-              Verified Production at Scale
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-2 leading-relaxed">
-              Empowering directors, agencies, and producers with reliable verified talent and rental equipment across India.
+      {/* ================= 3. HOW IT WORKS ================= */}
+      <section id="ch-how" className="relative overflow-hidden pt-[140px] pb-[150px]" style={{ background: 'linear-gradient(180deg, #04070d 0%, #071222 100%)' }}>
+        <div className="ch-glow w-[1100px] h-[300px] left-1/2 -bottom-[180px] -translate-x-1/2 bg-[#2a7bff] opacity-50" />
+        <div className="relative max-w-[1200px] mx-auto px-5 sm:px-10">
+          <div className="text-center max-w-[720px] mx-auto">
+            <div className="ch-eyebrow">How a booking works</div>
+            <h2 className="ch-display ch-silver text-5xl sm:text-[64px] mt-[18px]">From brief to wrap.</h2>
+            <p className="text-ch-muted text-base leading-relaxed mt-5">
+              One flow for every shoot — whether you need a single colorist for a day or a full camera department for a week.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 lg:gap-8 flex-1 max-w-3xl">
-            {stats.map((s, idx) => (
-              <div key={idx} className="border-l-2 border-blue-500/30 pl-4 py-1">
-                <p className="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight">{s.value}</p>
-                <p className="text-xs text-slate-300 font-semibold mt-1">{s.label}</p>
-                <span className="text-[10px] text-slate-500 block mt-0.5">{s.change}</span>
+          {/* Desktop: overlapping roadmap circles */}
+          <div className="hidden lg:block relative h-[420px] mt-20">
+            {howItWorks.map((col) => (
+              <React.Fragment key={col.step}>
+                <div className="absolute top-0 w-[400px] h-[400px] rounded-full border border-dashed border-white/15" style={{ left: col.left }} />
+                <div className="absolute top-12 w-[400px] text-center" style={{ left: col.left }}>
+                  <div className="ch-eyebrow !text-ch-faint">Step {col.step}</div>
+                  <div className="ch-display text-[28px] mt-1.5">{col.title}</div>
+                </div>
+                {col.items.map(([label, left, accent], i) => (
+                  <div
+                    key={label}
+                    className={`ch-glass ch-pill absolute ${accent ? '!border-[rgba(143,192,255,0.35)]' : ''}`}
+                    style={{ left, top: 160 + i * 66 }}
+                  >
+                    <span className="ch-dot" style={accent ? { background: '#8fc0ff' } : undefined} />
+                    {label}
+                  </div>
+                ))}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* Mobile / tablet: stacked steps */}
+          <div className="lg:hidden grid grid-cols-1 sm:grid-cols-3 gap-4 mt-14">
+            {howItWorks.map((col) => (
+              <div key={col.step} className="rounded-[28px] border border-dashed border-white/15 p-6">
+                <div className="ch-eyebrow !text-ch-faint">Step {col.step}</div>
+                <div className="ch-display text-[28px] mt-1.5 mb-4">{col.title}</div>
+                <div className="flex flex-col items-start gap-2.5">
+                  {col.items.map(([label]) => (
+                    <div key={label} className="ch-glass ch-pill !text-[13px] !whitespace-normal">
+                      <span className="ch-dot" />
+                      {label}
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ================= 3. FEATURED DISCIPLINES OVERVIEW (REFERENCE IMAGE 2 LAYOUT) ================= */}
-      <section id="featured-categories" className="w-full px-4 sm:px-6 lg:px-8 py-8 sm:py-9 bg-white border-b border-slate-200">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-5 border-b border-slate-100">
-          <div>
-            
-            <h2 className="text-2xl sm:text-3xl font-bold font-heading text-slate-900 tracking-tight">
-              Curated Talent Departments
-            </h2>
-          
-          </div>
-
-          {/* Minimal Standard Custom Dropdown */}
-          <div ref={dropdownRef} className="relative self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setIsDropdownOpen((prev) => !prev)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors text-xs font-semibold text-slate-800 cursor-pointer font-heading"
-            >
-              <span className="text-slate-400 font-normal">Department:</span>
-              <span className="font-bold text-slate-900">{formatCategoryName(activeDiscipline || categoriesList[0]?.name)}</span>
-              <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-60 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
-                {categoriesList.map((cat) => {
-                  const isSelected = (activeDiscipline || categoriesList[0]?.name) === cat.name;
-                  const count = vendors.filter((v) => matchesCategory(v.skills, cat.name)).length;
-
-                  return (
-                    <button
-                      key={cat.id || cat.name}
-                      type="button"
-                      onClick={() => {
-                        setActiveDiscipline(cat.name);
-                        setIsDropdownOpen(false);
-                      }}
-                      className={`w-full px-3.5 py-2 text-xs text-left flex items-center justify-between transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-blue-50/70 text-blue-700 font-bold'
-                          : 'text-slate-700 hover:bg-slate-50 font-medium'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        {isSelected ? (
-                          <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        ) : (
-                          <span className="w-3.5 h-3.5 shrink-0" />
-                        )}
-                        <span className="truncate">{formatCategoryName(cat.name)}</span>
-                      </div>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full shrink-0 ${isSelected ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-500'}`}>
-                        {count} {count === 1 ? 'Studio' : 'Studios'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Reference Image Split Layout (Left: Numbered Category List, Right: Full-width Preview Thumbnail + Details) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch">
-          {/* Left Column: Minimal Numbered List (Image 2 Left Side: 01, 02, 03... with Arrow Buttons) */}
-          <div className="lg:col-span-6 flex flex-col justify-center divide-y divide-slate-100">
-            {categoriesList.map((cat, idx) => {
-              const isCurrent = (activeDiscipline || categoriesList[0]?.name) === cat.name;
-              const count = vendors.filter((v) => matchesCategory(v.skills, cat.name)).length;
-              const num = String(idx + 1).padStart(2, '0');
-
-              return (
-                <div
-                  key={cat.id || idx}
-                  onClick={() => setActiveDiscipline(cat.name)}
-                  className={`group py-4 px-4 sm:px-6 transition-all duration-200 cursor-pointer flex items-center justify-between gap-4 rounded-2xl ${
-                    isCurrent
-                      ? 'bg-slate-100 shadow-2xs'
-                      : 'hover:bg-slate-50/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-5 sm:gap-8 min-w-0">
-                    <span className={`text-sm sm:text-base font-mono font-bold ${isCurrent ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'}`}>
-                      {num}
-                    </span>
-                    <div>
-                      <h3 className={`text-base sm:text-lg font-bold font-heading truncate transition-colors ${
-                        isCurrent ? 'text-slate-900' : 'text-slate-700 group-hover:text-blue-600'
-                      }`}>
-                        {formatCategoryName(cat.name)}
-                      </h3>
-                      <span className="text-[11px] text-slate-400 font-normal">
-                        Benchmark: ₹{Number(cat.recommended_daily_rate || 15000).toLocaleString()}/day
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className={`text-xs hidden sm:inline font-medium ${isCurrent ? 'text-blue-700 font-semibold' : 'text-slate-400'}`}>
-                      {count} {count === 1 ? 'Studio' : 'Studios'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveDiscipline(cat.name);
-                        const el = document.getElementById(`section-${cat.name.replace(/\s+/g, '-').toLowerCase()}`);
-                        if (el) el.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                        isCurrent
-                          ? 'bg-blue-600 text-white shadow-xs scale-105'
-                          : 'bg-slate-900 text-white group-hover:bg-blue-600'
-                      }`}
-                      title={`Jump to ${formatCategoryName(cat.name)}`}
-                    >
-                      <ArrowUpRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Right Column: Full-width Preview Thumbnail (No outer border card) */}
-          <div className="lg:col-span-6 w-full flex flex-col justify-between">
-            {/* Full-width Category Photo Thumbnail */}
-            <div className="relative w-full h-64 sm:h-72 rounded-2xl overflow-hidden shadow-sm group">
-              <img
-                src={getCategoryThumbnail(activeDiscipline || categoriesList[0]?.name)}
-                alt={activeDiscipline || 'Category'}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/25 to-black/10" />
-
-              {/* Status Pill on Thumbnail */}
-              <div className="absolute top-4 right-4">
-                {vendors.filter((v) => matchesCategory(v.skills, activeDiscipline || categoriesList[0]?.name)).length > 0 ? (
-                  <span className="text-[11px] font-semibold text-emerald-800 bg-white/95 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>
-                      {vendors.filter((v) => matchesCategory(v.skills, activeDiscipline || categoriesList[0]?.name)).length} Active Studios
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-medium text-slate-700 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full shadow-xs">
-                    Accepting Studios
-                  </span>
-                )}
-              </div>
-
-              {/* Title & Benchmark Overlay on Thumbnail */}
-              <div className="absolute bottom-4 left-5 right-5 flex items-end justify-between text-white">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-blue-300 tracking-wider block">
-                    Specialized Department
-                  </span>
-                  <h4 className="text-xl sm:text-2xl font-bold font-heading text-white">
-                    {formatCategoryName(activeDiscipline || categoriesList[0]?.name)}
-                  </h4>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-[10px] uppercase font-semibold text-slate-300 block">
-                    Benchmark Rate
-                  </span>
-                  <span className="text-lg font-bold font-mono text-white">
-                    ₹{Number(
-                      categoriesList.find((c) => c.name === (activeDiscipline || categoriesList[0]?.name))?.recommended_daily_rate || 15000
-                    ).toLocaleString()}/day
-                  </span>
-                </div>
-              </div>
+      {/* ================= 4. DEPARTMENTS ================= */}
+      <section id="featured-categories" className="bg-ch-bg pt-[140px] pb-[140px]">
+        <div className="max-w-[1200px] mx-auto px-5 sm:px-10">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-14">
+            <div>
+              <div className="ch-eyebrow">Departments</div>
+              <h2 className="ch-display text-5xl sm:text-[64px] mt-[18px]">
+                <span className="ch-silver">Every department.</span>
+                <br />
+                <span className="ch-dim">One call sheet.</span>
+              </h2>
             </div>
+            <p className="text-ch-muted max-w-[320px] leading-relaxed">
+              Benchmark day rates are shown up front, so you know the budget before you message anyone.
+            </p>
+          </div>
 
-            {/* Content & Action Under Thumbnail (Clean, Borderless, Professional) */}
-            <div className="mt-4 flex-1 flex flex-col justify-between">
-              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
-                {categoriesList.find((c) => c.name === (activeDiscipline || categoriesList[0]?.name))?.description ||
-                  'Our vetted creative professionals transform concepts into high-end commercial captures with industry-standard cameras, lenses, and lighting.'}
-              </p>
-
-              <div className="mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="text-xs text-slate-500 font-mono">
-                  Bracket:{' '}
-                  <span className="font-semibold text-slate-800">
-                    ₹{Number(
-                      categoriesList.find((c) => c.name === (activeDiscipline || categoriesList[0]?.name))?.min_daily_rate || 5000
-                    ).toLocaleString()}{' '}
-                    – ₹{Number(
-                      categoriesList.find((c) => c.name === (activeDiscipline || categoriesList[0]?.name))?.max_daily_rate || 50000
-                    ).toLocaleString()}
-                  </span>
+          {leadCategory ? (
+            <div className="grid grid-cols-1 md:grid-cols-[1.25fr_1fr_1fr] md:grid-rows-[280px_280px] gap-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory(leadCategory.name);
+                  scrollToId('ch-studios');
+                }}
+                className="ch-duo group h-[420px] md:h-auto md:row-span-2 rounded-[28px] border border-ch-line text-left cursor-pointer"
+              >
+                <img src={getCategoryThumbnail(leadCategory.name)} alt={leadCategory.name} className="group-hover:scale-105" />
+                <div className="absolute left-7 right-7 bottom-7 z-10">
+                  <span className="ch-glass ch-pill !py-1.5 !px-3.5 !text-xs !text-ch-ice">Most booked</span>
+                  <div className="ch-display text-[40px] mt-4">{formatCategoryName(leadCategory.name)}</div>
+                  <div className="flex justify-between mt-3 text-sm text-ch-muted">
+                    <span>
+                      {categoryCount(leadCategory.name)} verified {categoryCount(leadCategory.name) === 1 ? 'studio' : 'studios'}
+                    </span>
+                    <span className="text-ch-text">from {formatRateK(leadCategory.min_daily_rate || 5000)}/day</span>
+                  </div>
                 </div>
+              </button>
 
+              {sideCategories.map((cat) => (
                 <button
+                  key={cat.id || cat.name}
                   type="button"
                   onClick={() => {
-                    const targetName = activeDiscipline || categoriesList[0]?.name || '';
-                    const el = document.getElementById(`section-${targetName.replace(/\s+/g, '-').toLowerCase()}`);
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    setSelectedCategory(cat.name);
+                    scrollToId('ch-studios');
                   }}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 self-start sm:self-auto"
+                  className="ch-glass h-[220px] md:h-auto rounded-[28px] p-7 flex flex-col justify-between text-left cursor-pointer hover:border-white/20 transition-colors"
                 >
-                  <span>Explore {formatCategoryName(activeDiscipline || categoriesList[0]?.name)} Partners</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  <span className="ch-icon-chip">{getCategoryIcon(cat.name)}</span>
+                  <div className="w-full">
+                    <div className="text-xl font-medium">{formatCategoryName(cat.name)}</div>
+                    <div className="flex justify-between mt-2 text-[13px] text-ch-muted">
+                      <span>
+                        {categoryCount(cat.name)} {categoryCount(cat.name) === 1 ? 'studio' : 'studios'}
+                      </span>
+                      <span className="text-ch-text">from {formatRateK(cat.min_daily_rate || 5000)}/day</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="ch-glass rounded-[28px] p-12 text-center text-sm text-ch-muted">
+              {loadingCategories ? 'Loading departments...' : 'Departments will appear here once they are set up.'}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ================= 5. STUDIOS ================= */}
+      <section id="ch-studios" className="bg-ch-bg pt-5 pb-20 scroll-mt-28">
+        <div className="max-w-[1200px] mx-auto px-5 sm:px-10">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-9">
+            <h3 className="ch-display ch-silver text-[40px] whitespace-nowrap shrink-0">
+              {selectedCategory === 'all' ? 'Booking fast this week' : formatCategoryName(selectedCategory)}
+            </h3>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar min-w-0">
+              {[{ name: 'all' }, ...rankedCategories].map((cat) => {
+                const isActive = selectedCategory === cat.name;
+                return (
+                  <button
+                    key={cat.name}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat.name)}
+                    className={`ch-pill !py-2.5 !px-[18px] cursor-pointer transition-colors ${
+                      isActive ? 'ch-glass !text-ch-text' : '!text-ch-muted border border-ch-line hover:!text-ch-text'
+                    }`}
+                  >
+                    {cat.name === 'all' ? 'All' : formatCategoryName(cat.name)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {loadingVendors ? (
+            <div className="ch-glass rounded-[28px] py-20 text-center text-sm text-ch-muted">Loading verified talent and studios...</div>
+          ) : directoryVendors.length === 0 ? (
+            <div className="rounded-[28px] border border-dashed border-white/15 p-12 text-center space-y-3">
+              <h4 className="text-lg font-medium">No studios match yet</h4>
+              <p className="text-[13px] text-ch-muted max-w-sm mx-auto">
+                {vendorSearch || cityFilter
+                  ? 'Try another role or city, or clear the search.'
+                  : `No approved partners are listed under ${formatCategoryName(selectedCategory)} yet.`}
+              </p>
+              <div className="flex justify-center gap-2 pt-2">
+                {(vendorSearch || cityFilter) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVendorSearch('');
+                      setCityFilter('');
+                    }}
+                    className="ch-btn ch-btn-white !h-10 !text-[13px]"
+                  >
+                    Clear search
+                  </button>
+                )}
+                <button type="button" onClick={() => onOpenAuth('register', 'vendor')} className="ch-btn ch-btn-ghost !h-10 !text-[13px]">
+                  List your studio
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= 4. DEDICATED CATEGORY SECTIONS (FOR APPROVED VENDORS) ================= */}
-      <section className="w-full px-4 sm:px-6 lg:px-8 pt-5 pb-12 bg-white">
-        {/* Minimal Directory Header */}
-        
-
-        {loadingVendors ? (
-          <div className="py-20 text-center text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-2xl">
-            Loading verified talent and studios...
-          </div>
-        ) : categorySections.length === 0 && uncategorizedVendors.length === 0 ? (
-          <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-12 text-center space-y-3">
-            <h3 className="text-base font-bold text-slate-900">No Approved Vendors Found</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              No approved vendors match your query. Try clearing your search term.
-            </p>
-            {vendorSearch && (
-              <button
-                type="button"
-                onClick={() => setVendorSearch('')}
-                className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition-all cursor-pointer"
-              >
-                Clear Search
-              </button>
-            )}
-          </div>
-        ) : (
-          /* Render dedicated sections for each category with minimal, low-height headings */
-          <div className="space-y-8 sm:space-y-10">
-            {categorySections.map((catSection) => {
-              const secId = `section-${catSection.name.replace(/\s+/g, '-').toLowerCase()}`;
-
-              return (
-                <div key={catSection.id || catSection.name} id={secId} className="scroll-mt-24 pb-6 sm:pb-8">
-                  {/* Minimal Category Section Header (No icons, no description, no price, minimal height) */}
-                  <div className="flex items-center justify-between pb-3 mb-6 border-b border-slate-200">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 tracking-tight">
-                        {formatCategoryName(catSection.name)}
-                      </h3>
-                      <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                        {catSection.vendors.length} {catSection.vendors.length === 1 ? 'Partner' : 'Partners'}
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {directoryVendors.map((vendor) => {
+                const cat = vendorCategory(vendor);
+                return (
+                  <div key={vendor.id} className="ch-glass rounded-[28px] p-2.5 group">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProfessional(toProfessional(vendor))}
+                      className="ch-duo block w-full h-[300px] rounded-[20px] cursor-pointer"
+                      title="View profile"
+                    >
+                      {vendor.profile_image ? (
+                        <img src={vendor.profile_image} alt={vendor.business_name} className="group-hover:scale-105" />
+                      ) : (
+                        <span
+                          className="absolute inset-0 flex items-center justify-center"
+                          style={{ background: 'radial-gradient(80% 70% at 50% 100%, #2a6fe0 0%, #0b2a57 55%, #08111f 100%)' }}
+                        >
+                          <span className="ch-display ch-silver text-[96px] group-hover:scale-105 transition-transform duration-700">
+                            {(vendor.business_name || 'S')
+                              .split(' ')
+                              .map((w) => w[0])
+                              .slice(0, 2)
+                              .join('')
+                              .toUpperCase()}
+                          </span>
+                        </span>
+                      )}
+                      <span className="ch-glass ch-pill absolute top-3 left-3 z-10 !py-1.5 !px-3 !text-xs">
+                        ★ {vendor.avg_rating || '5.0'} · {vendor.review_count || 0}
                       </span>
-                    </div>
-                  </div>
-
-                  {catSection.vendors.length === 0 ? (
-                    <div className="bg-slate-50/80 border border-dashed border-slate-200 rounded-2xl p-8 sm:p-10 text-center text-xs text-slate-400 flex flex-col items-center justify-center gap-2">
-                      <p className="text-slate-500 font-medium">No approved partners listed under {formatCategoryName(catSection.name)} yet.</p>
+                      {vendor.verification_status === 'verified' && (
+                        <span className="ch-glass absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center" title="Verified">
+                          <Check className="w-3.5 h-3.5 text-ch-ice" />
+                        </span>
+                      )}
+                    </button>
+                    <div className="px-3 pt-[18px] pb-2.5">
                       <button
                         type="button"
-                        onClick={() => onOpenAuth('register', 'vendor')}
-                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                        onClick={() => setSelectedProfessional(toProfessional(vendor))}
+                        className="text-[17px] font-medium truncate block max-w-full text-left cursor-pointer hover:text-white"
                       >
-                        Register as a verified {formatCategoryName(catSection.name)} &rarr;
+                        {vendor.business_name}
                       </button>
-                    </div>
-                  ) : (
-                    /* 4 Cards Per Row Grid (Inverted: bg-slate-50 cards on bg-white section) */
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                      {catSection.vendors.map((vendor) => {
-                        const initials = (vendor.business_name || 'Studio')
-                          .split(' ')
-                          .map((n) => n[0])
-                          .slice(0, 2)
-                          .join('')
-                          .toUpperCase();
-
-                        return (
-                          <div
-                            key={vendor.id}
-                            className="bg-slate-50 border border-slate-200 rounded-2xl p-5 hover:shadow-lg hover:border-blue-400 transition-all duration-200 flex flex-col justify-between group"
-                          >
-                            <div>
-                              {/* Header: Avatar + Studio + Rating */}
-                              <div className="flex items-start justify-between gap-2.5 mb-3">
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0 overflow-hidden">
-                                    {vendor.profile_image ? (
-                                      <img src={vendor.profile_image} alt={vendor.business_name} className="w-full h-full object-cover" />
-                                    ) : (
-                                      initials
-                                    )}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                      <h4 className="text-sm font-bold font-heading text-slate-900 truncate group-hover:text-blue-600 transition-colors">
-                                        {vendor.business_name}
-                                      </h4>
-                                      {vendor.verification_status === 'verified' && (
-                                        <CheckCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                      )}
-                                    </div>
-                                    <p className="text-[11px] text-slate-500 font-normal truncate">
-                                      Lead: {vendor.owner_name || 'Creative Lead'}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/60 px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0">
-                                  <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
-                                  <span>{vendor.avg_rating || '5.0'}</span>
-                                  <span className="text-[10px] text-amber-700 font-normal">({vendor.review_count || 0})</span>
-                                </div>
-                              </div>
-
-                              {/* Badges: Level & Location */}
-                              <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
-                                {vendor.experience_level && (
-                                  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white text-slate-700 border border-slate-200">
-                                    {vendor.experience_level === 'senior' ? 'Master' : vendor.experience_level === 'mid' ? 'Pro' : 'Rising'}
-                                  </span>
-                                )}
-                                <span className="text-[11px] text-slate-400 flex items-center gap-0.5 ml-auto">
-                                  <MapPin className="w-3 h-3 shrink-0" />
-                                  <span className="truncate max-w-[90px]">{vendor.location || 'India'}</span>
-                                </span>
-                              </div>
-
-                              {/* Bio */}
-                              <p className="text-xs text-slate-600 leading-relaxed line-clamp-2 mb-4 font-normal">
-                                {vendor.bio || 'Verified creative vendor profile providing production services and gear.'}
-                              </p>
-                            </div>
-
-                            {/* Bottom: Pricing & Quick Actions */}
-                            <div className="pt-3 border-t border-slate-200 mt-auto">
-                              <div className="flex items-center justify-between mb-3 gap-2">
-                                <div>
-                                  <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-semibold">Standard Rate</span>
-                                  <span className="text-sm sm:text-base font-bold text-slate-900 font-mono">
-                                    ₹{Number(vendor.pricing || 15000).toLocaleString()}
-                                    <span className="text-[11px] font-normal text-slate-500">/{vendor.pricing_unit || 'day'}</span>
-                                  </span>
-                                </div>
-
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <button
-                                    onClick={() =>
-                                      setSelectedProfessional({
-                                        ...vendor,
-                                        title: vendor.business_name,
-                                        resource_type: 'talent',
-                                        vendor_id: vendor.id,
-                                        base_price: vendor.pricing || 15000,
-                                        pricing_unit: vendor.pricing_unit || 'day',
-                                        provider_name: vendor.owner_name,
-                                      })
-                                    }
-                                    className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                                  >
-                                    Profile
-                                  </button>
-
-                                  <button
-                                    onClick={() => onOpenChat?.({ vendorId: vendor.id })}
-                                    className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg border border-blue-200 transition-colors cursor-pointer flex items-center gap-1"
-                                    title="Message Studio"
-                                  >
-                                    <MessageSquare className="w-3 h-3" />
-                                    <span>Message</span>
-                                  </button>
-                                </div>
-                              </div>
-
-                              <button
-                                onClick={() =>
-                                  onAddToCart?.({
-                                    ...vendor,
-                                    title: vendor.business_name,
-                                    resource_type: 'talent',
-                                    vendor_id: vendor.id,
-                                    base_price: vendor.pricing || 15000,
-                                    pricing_unit: vendor.pricing_unit || 'day',
-                                    provider_name: vendor.owner_name,
-                                  })
-                                }
-                                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
-                              >
-                                <ShoppingCart className="w-3.5 h-3.5" />
-                                <span>Book Hold</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Uncategorized / General Section if any */}
-            {uncategorizedVendors.length > 0 && (
-              <div className="pt-4 pb-8 sm:pb-10">
-                <div className="flex items-center justify-between pb-3 mb-6 border-b border-slate-200">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 tracking-tight">
-                      Additional Creative Studios
-                    </h3>
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                      {uncategorizedVendors.length} {uncategorizedVendors.length === 1 ? 'Partner' : 'Partners'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                  {uncategorizedVendors.map((vendor) => {
-                    const initials = (vendor.business_name || 'Studio')
-                      .split(' ')
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join('')
-                      .toUpperCase();
-
-                    return (
-                      <div
-                        key={vendor.id}
-                        className="bg-slate-50 border border-slate-200 rounded-2xl p-5 hover:shadow-lg hover:border-blue-400 transition-all duration-200 flex flex-col justify-between group"
-                      >
-                        <div>
-                          <div className="flex items-start justify-between gap-2.5 mb-3">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0">
-                                {initials}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <h4 className="text-sm font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors">
-                                    {vendor.business_name}
-                                  </h4>
-                                  {vendor.verification_status === 'verified' && (
-                                    <CheckCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                  )}
-                                </div>
-                                <p className="text-[11px] text-slate-500 font-normal truncate">
-                                  Lead: {vendor.owner_name || 'Creative Lead'}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/60 px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0">
-                              <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
-                              <span>{vendor.avg_rating || '5.0'}</span>
-                              <span className="text-[10px] text-amber-700 font-normal">({vendor.review_count || 0})</span>
-                            </div>
-                          </div>
-
-                          <p className="text-xs text-slate-600 leading-relaxed line-clamp-2 mb-4 font-normal">
-                            {vendor.bio || 'Verified creative vendor profile providing production services and gear.'}
-                          </p>
-                        </div>
-
-                        <div className="pt-3 border-t border-slate-200 mt-auto">
-                          <div className="flex items-center justify-between mb-3 gap-2">
-                            <div>
-                              <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-semibold">Standard Rate</span>
-                              <span className="text-sm sm:text-base font-bold text-slate-900 font-mono">
-                                ₹{Number(vendor.pricing || 15000).toLocaleString()}
-                                <span className="text-[11px] font-normal text-slate-500">/{vendor.pricing_unit || 'day'}</span>
-                              </span>
-                            </div>
-
-                            <button
-                              onClick={() =>
-                                setSelectedProfessional({
-                                  ...vendor,
-                                  title: vendor.business_name,
-                                  resource_type: 'talent',
-                                  vendor_id: vendor.id,
-                                  base_price: vendor.pricing || 15000,
-                                  pricing_unit: vendor.pricing_unit || 'day',
-                                  provider_name: vendor.owner_name,
-                                })
-                              }
-                              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                            >
-                              Profile
-                            </button>
-                          </div>
-
+                      <div className="text-[13px] text-ch-muted mt-1 truncate">
+                        {formatCategoryName(cat?.name || vendor.skills || 'Creative')} · {vendor.location || 'India'}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-[18px]">
+                        <span className="ch-display !tracking-[-0.02em] text-xl whitespace-nowrap">
+                          ₹{Number(vendor.pricing || 15000).toLocaleString('en-IN')}
+                          <span className="text-[13px] text-ch-faint">/{vendor.pricing_unit || 'day'}</span>
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
-                            onClick={() =>
-                              onAddToCart?.({
-                                ...vendor,
-                                title: vendor.business_name,
-                                resource_type: 'talent',
-                                vendor_id: vendor.id,
-                                base_price: vendor.pricing || 15000,
-                                pricing_unit: vendor.pricing_unit || 'day',
-                                provider_name: vendor.owner_name,
-                              })
-                            }
-                            className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                            type="button"
+                            onClick={() => onOpenChat?.({ vendorId: vendor.id })}
+                            className="w-[38px] h-[38px] rounded-full border border-ch-line text-ch-muted hover:text-ch-text hover:bg-white/5 flex items-center justify-center cursor-pointer transition-colors"
+                            title="Message studio"
                           >
-                            <ShoppingCart className="w-3.5 h-3.5" />
-                            <span>Book Hold</span>
+                            <MessageSquare className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onAddToCart?.(toProfessional(vendor))}
+                            className="ch-btn ch-btn-white !h-[38px] !px-4 !text-[13px]"
+                          >
+                            Book hold
                           </button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </section>
 
-      {/* ================= 5. PLATFORM FOOTER ================= */}
-      <footer className="w-full bg-white border-t border-slate-200 px-6 sm:px-12 lg:px-16 py-12">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
-              C
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-900">CREATIVE HUB</p>
-              <p className="text-xs text-slate-400">Talent & Gear Managed Hub across India</p>
-            </div>
+      {/* ================= 6. TRUST ================= */}
+      <section className="relative overflow-hidden pt-[60px]" style={{ background: 'linear-gradient(180deg, #04070d 0%, #06101f 100%)' }}>
+        <div className="ch-glow w-[900px] h-[360px] left-1/2 -bottom-[220px] -translate-x-1/2 bg-[#2a7bff] opacity-55" />
+
+        {/* Desktop composition */}
+        <div className="hidden lg:block relative max-w-[1200px] mx-auto px-10 h-[720px]">
+          <div className="absolute left-[90px] top-10 w-[520px] h-[520px] rounded-full border border-white/[0.06]" />
+          <h2 className="ch-display absolute left-[120px] top-[150px] text-[128px] z-[1]">
+            <span className="ch-silver">Every rupee</span>
+          </h2>
+          <h2 className="ch-display ch-dim absolute left-[420px] top-[278px] text-[128px] z-0">is protected</h2>
+
+          <div className="ch-duo absolute left-[440px] top-[300px] w-[300px] h-[420px] rounded-t-3xl z-[2]">
+            <img src="https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=700&q=80" alt="Clapperboard on set" />
           </div>
 
-          <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-slate-500">
-            <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-blue-600" /> Identity Vetted</span>
-            <span className="flex items-center gap-1.5"><Award className="w-4 h-4 text-blue-600" /> Escrow Advance Guard</span>
-            <span className="flex items-center gap-1.5"><Zap className="w-4 h-4 text-blue-600" /> Direct Studio Chat</span>
+          <div className="ch-glass absolute left-[100px] top-[360px] w-[280px] rounded-[28px] p-7 z-[3]">
+            <span className="ch-icon-chip"><ShieldCheck className="w-5 h-5" /></span>
+            <div className="text-xl font-medium mt-6 leading-snug">Escrow advance guard</div>
+            <div className="text-[13px] text-ch-muted leading-relaxed mt-2.5">Your advance is released only after the deliverables land in your vault.</div>
           </div>
 
-          <div>
-            {user?.role === 'vendor' ? (
-              <button
-                onClick={onNavigateToStudio}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-xs"
-              >
-                Go to Studio Dashboard
-              </button>
-            ) : (
-              <button
-                onClick={() => onOpenAuth('register', 'vendor')}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-blue-600 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-xs"
-              >
-                Join as Verified Vendor
-              </button>
-            )}
+          <div className="ch-glass absolute right-10 top-10 w-[280px] rounded-[28px] p-7 z-[3]">
+            <span className="ch-icon-chip"><UserCheck className="w-5 h-5" /></span>
+            <div className="text-xl font-medium mt-6 leading-snug">Identity vetted crews</div>
+            <div className="text-[13px] text-ch-muted leading-relaxed mt-2.5">Every studio's ID, portfolio and gear is checked before it goes live.</div>
+          </div>
+
+          <div className="ch-glass absolute right-20 top-[380px] w-[240px] rounded-[28px] p-6 text-center z-[3]">
+            <div className="text-base font-medium">On-time delivery</div>
+            <div className="text-xs text-ch-muted leading-normal mt-1.5">Projects delivered within the agreed window.</div>
+            <div className="ch-ring mx-auto mt-[18px]">
+              <svg width="88" height="88" viewBox="0 0 88 88">
+                <circle cx="44" cy="44" r="36" stroke="rgba(255,255,255,0.08)" strokeWidth="4" fill="none" />
+                <circle cx="44" cy="44" r="36" stroke="#8fc0ff" strokeWidth="4" fill="none" strokeLinecap="round" strokeDasharray="226" strokeDashoffset="9" />
+              </svg>
+              <span className="ch-display text-xl">96%</span>
+            </div>
           </div>
         </div>
 
-        <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-          <p>© {new Date().getFullYear()} Creative Hub. All rights reserved.</p>
-          <p>Curated talent, transparent benchmark pricing, and guaranteed equipment holds.</p>
+        {/* Mobile / tablet */}
+        <div className="lg:hidden relative max-w-[1200px] mx-auto px-5 sm:px-10 pb-20">
+          <h2 className="ch-display text-[56px] sm:text-[80px]">
+            <span className="ch-silver">Every rupee</span>
+            <br />
+            <span className="ch-dim">is protected</span>
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10">
+            <div className="ch-glass rounded-[28px] p-7">
+              <span className="ch-icon-chip"><ShieldCheck className="w-5 h-5" /></span>
+              <div className="text-xl font-medium mt-6">Escrow advance guard</div>
+              <div className="text-[13px] text-ch-muted leading-relaxed mt-2.5">Your advance is released only after the deliverables land in your vault.</div>
+            </div>
+            <div className="ch-glass rounded-[28px] p-7">
+              <span className="ch-icon-chip"><UserCheck className="w-5 h-5" /></span>
+              <div className="text-xl font-medium mt-6">Identity vetted crews</div>
+              <div className="text-[13px] text-ch-muted leading-relaxed mt-2.5">Every studio's ID, portfolio and gear is checked before it goes live.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= 7. CTA + FOOTER ================= */}
+      <footer className="bg-ch-navy border-t border-ch-line pt-[140px] pb-14">
+        <div className="max-w-[1200px] mx-auto px-5 sm:px-10 text-center">
+          <h2 className="ch-display ch-silver text-[52px] sm:text-[80px]">
+            Your next shoot
+            <br />
+            starts here.
+          </h2>
+          <div className="flex flex-wrap gap-3 justify-center mt-10">
+            {isAdmin ? (
+              <button onClick={onNavigateToAdmin} className="ch-btn ch-btn-white">Open Admin Console</button>
+            ) : user?.role === 'vendor' ? (
+              <button onClick={onNavigateToStudio} className="ch-btn ch-btn-white">Go to Studio Dashboard</button>
+            ) : (
+              <>
+                <button onClick={() => scrollToId('ch-top')} className="ch-btn ch-btn-white">Find crew</button>
+                <button onClick={() => onOpenAuth('register', 'vendor')} className="ch-btn ch-btn-ghost">List your studio</button>
+              </>
+            )}
+          </div>
+
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mt-[140px] pt-7 border-t border-ch-line text-[13px] text-ch-faint">
+            <span>© {new Date().getFullYear()} Creative Hub</span>
+            <div className="flex gap-8">
+              <button type="button" onClick={() => scrollToId('ch-studios')} className="hover:text-ch-text cursor-pointer">Talent</button>
+              <button type="button" onClick={() => scrollToId('featured-categories')} className="hover:text-ch-text cursor-pointer">Gear</button>
+              <button type="button" onClick={() => onOpenAuth('register', 'vendor')} className="hover:text-ch-text cursor-pointer">For studios</button>
+              <button type="button" onClick={() => onOpenChat?.()} className="hover:text-ch-text cursor-pointer">Support</button>
+            </div>
+            <span>Made for Indian production crews</span>
+          </div>
         </div>
       </footer>
 

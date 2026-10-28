@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, LogOut, ShoppingCart, MessageSquare } from 'lucide-react';
+import { Search, LogOut, ShoppingCart, MessageSquare, Aperture } from 'lucide-react';
 
 export default function Navbar({
   user,
@@ -18,6 +18,113 @@ export default function Navbar({
   const isCustomer = user?.role === 'customer';
   // Dashboards have their own sidebar with messages, cart and search, so the header stays minimal there
   const inDashboard = currentView === 'vendor_studio' || currentView === 'customer_projects';
+
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+
+  // Marketplace landing gets the floating glass navigation
+  if (currentView === 'marketplace') {
+    const dashboardTarget = isAdmin ? 'admin' : isVendor ? 'vendor_studio' : isCustomer ? 'customer_projects' : null;
+    const dashboardLabel = isAdmin ? 'Admin Console' : isVendor ? 'My Studio' : 'My Dashboard';
+
+    return (
+      <header className="fixed top-6 inset-x-0 z-40 font-sans">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-10">
+          <nav className="ch-glass flex items-center justify-between h-16 pl-6 pr-2.5 rounded-full">
+            <div
+              onClick={() => scrollTo('ch-top')}
+              className="flex items-center gap-2.5 cursor-pointer select-none"
+            >
+              <Aperture className="w-6 h-6 text-white" strokeWidth={1.6} />
+              <span className="text-[17px] font-semibold tracking-[-0.02em] text-ch-text" style={{ fontFamily: "'Inter Tight', sans-serif" }}>
+                Creative Hub
+              </span>
+            </div>
+
+            <div className="hidden lg:flex items-center gap-9 text-sm text-ch-muted">
+              <button type="button" onClick={() => scrollTo('ch-studios')} className="text-ch-text cursor-pointer">Talent</button>
+              <button type="button" onClick={() => scrollTo('featured-categories')} className="hover:text-ch-text transition-colors cursor-pointer">Gear</button>
+              <button type="button" onClick={() => scrollTo('ch-how')} className="hover:text-ch-text transition-colors cursor-pointer">How it works</button>
+              <button type="button" onClick={() => (isVendor ? onNavigate?.('vendor_studio') : onOpenAuth('register', 'vendor'))} className="hover:text-ch-text transition-colors cursor-pointer">For studios</button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {user && (
+                <button
+                  onClick={onOpenChat}
+                  title="Messages"
+                  className="relative w-11 h-11 rounded-full border border-ch-line text-ch-muted hover:text-ch-text hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  {unreadChatCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-[#3b8bff] text-white rounded-full text-[10px] font-semibold flex items-center justify-center">
+                      {unreadChatCount}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {(cartCount > 0 || (user && !isVendor && !isAdmin)) && (
+                <button
+                  onClick={onOpenCart}
+                  title="Cart"
+                  className="relative w-11 h-11 rounded-full border border-ch-line text-ch-muted hover:text-ch-text hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-[#3b8bff] text-white rounded-full text-[10px] font-semibold flex items-center justify-center">
+                      {cartCount}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {user ? (
+                <>
+                  {dashboardTarget && (
+                    <button
+                      onClick={() => onNavigate?.(dashboardTarget)}
+                      className="ch-btn ch-btn-white !h-11 !px-5 flex items-center gap-2"
+                    >
+                      {isAdmin && pendingCount > 0 && (
+                        <span className="px-1.5 bg-amber-500 text-white rounded-full text-[10px] font-bold">{pendingCount}</span>
+                      )}
+                      <span>{dashboardLabel}</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={onLogout}
+                    title="Sign Out"
+                    className="w-11 h-11 rounded-full overflow-hidden bg-[#0b2a57] text-ch-ice text-xs font-semibold flex items-center justify-center hover:ring-2 hover:ring-white/20 transition-all cursor-pointer group relative"
+                  >
+                    {user?.profile_image ? (
+                      <img src={user.profile_image} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      (user.name || 'U').charAt(0).toUpperCase()
+                    )}
+                    <span className="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center">
+                      <LogOut className="w-4 h-4 text-white" />
+                    </span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => onOpenAuth('login')}
+                    className="hidden sm:inline px-4 text-sm text-ch-muted hover:text-ch-text transition-colors cursor-pointer"
+                  >
+                    Log in
+                  </button>
+                  <button onClick={() => onOpenAuth('register')} className="ch-btn ch-btn-white !h-11">
+                    Get started
+                  </button>
+                </>
+              )}
+            </div>
+          </nav>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-md shadow-2xs">
