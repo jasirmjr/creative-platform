@@ -17,6 +17,55 @@ import VendorModal from './VendorModal';
 import ProfessionalDetailModal from './ProfessionalDetailModal';
 import { resolveMediaUrl, hideBrokenImage } from '../utils/media';
 
+const unsplash = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=900&q=75`;
+
+// Production photography per department; studios without their own cover get one of these
+const COVER_POOLS = {
+  cinematography: [
+    '1516035069371-29a1b244cc32',
+    '1581591524425-c7e0978865fc',
+    '1440404653325-ab127d49abc1',
+    '1519183071298-a2962feb14f4',
+    '1478720568477-152d9b164e26',
+    '1485846234645-a62644f84728',
+  ],
+  photography: [
+    '1471341971476-ae15ff5dd4ea',
+    '1520390138845-fd2d229dd553',
+    '1492691527719-9d1e07e534b4',
+    '1554048612-b6a482bc67e5',
+    '1495707902641-75cac588d2e9',
+  ],
+  editing: [
+    '1574717024653-61fd2cf4d44d',
+    '1617042375876-a13e36732a04',
+    '1559028012-481c04fa702d',
+    '1612198188060-c7c2a3b66eae',
+  ],
+  sound: ['1478737270239-2f02b77fc618', '1590602847861-f357a9332bbc', '1598488035139-bdbb2231ce04'],
+  drone: ['1473968512647-3e447244af8f', '1508444845599-5c89863b1c44'],
+  gear: ['1502920917128-1aa500764cbd', '1500634245200-e5245c7574ef', '1581591524425-c7e0978865fc'],
+};
+
+const getCoverPool = (name) => {
+  const n = (name || '').toLowerCase();
+  let key = 'cinematography';
+  if (n.includes('drone') || n.includes('aerial')) key = 'drone';
+  else if (n.includes('photo')) key = 'photography';
+  else if (n.includes('edit') || n.includes('post') || n.includes('color') || n.includes('vfx')) key = 'editing';
+  else if (n.includes('sound') || n.includes('audio') || n.includes('music')) key = 'sound';
+  else if (n.includes('gear') || n.includes('rental') || n.includes('equipment')) key = 'gear';
+  return COVER_POOLS[key].map(unsplash);
+};
+
+// Stable per-studio pick so neighbouring cards don't repeat the same photo
+const pickCover = (pool, seed) => {
+  const str = String(seed ?? '');
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return pool[h % pool.length];
+};
+
 export default function Dashboard({
   user,
   token: propToken,
@@ -137,20 +186,8 @@ export default function Dashboard({
     return <Layers className="w-5 h-5" />;
   };
 
-  // Helper to get category thumbnail image
-  const getCategoryThumbnail = (name) => {
-    const n = (name || '').toLowerCase();
-    if (n.includes('cinemat') || n.includes('camera') || n.includes('dp')) {
-      return 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80';
-    }
-    if (n.includes('photo')) {
-      return 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?auto=format&fit=crop&w=1200&q=80';
-    }
-    if (n.includes('edit') || n.includes('post') || n.includes('color')) {
-      return 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=1200&q=80';
-    }
-    return 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=1200&q=80';
-  };
+  // Category thumbnail = first image of that department's cover pool
+  const getCategoryThumbnail = (name) => getCoverPool(name)[0];
 
   // Helper to match vendor skills with category
   const matchesCategory = (vendorSkills, catName) => {
@@ -509,10 +546,13 @@ export default function Dashboard({
                     setSelectedCategory(cat.name);
                     scrollToId('ch-studios');
                   }}
-                  className="ch-glass h-[220px] md:h-auto rounded-[28px] p-7 flex flex-col justify-between text-left cursor-pointer hover:border-white/20 transition-colors"
+                  className="ch-glass group relative overflow-hidden h-[220px] md:h-auto rounded-[28px] p-7 flex flex-col justify-between text-left cursor-pointer hover:border-white/20 transition-colors"
                 >
-                  <span className="ch-icon-chip">{getCategoryIcon(cat.name)}</span>
-                  <div className="w-full">
+                  <span className="ch-duo absolute inset-0 opacity-70 group-hover:opacity-90 transition-opacity">
+                    <img src={getCategoryThumbnail(cat.name)} alt="" className="group-hover:scale-105" />
+                  </span>
+                  <span className="ch-icon-chip relative z-10">{getCategoryIcon(cat.name)}</span>
+                  <div className="w-full relative z-10">
                     <div className="text-xl font-medium">{formatCategoryName(cat.name)}</div>
                     <div className="flex justify-between mt-2 text-[13px] text-ch-muted">
                       <span>
@@ -592,43 +632,46 @@ export default function Dashboard({
                 const cat = vendorCategory(vendor);
                 return (
                   <div key={vendor.id} className="ch-glass rounded-[28px] p-2.5 group">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedProfessional(toProfessional(vendor))}
-                      className="ch-duo block w-full h-[300px] rounded-[20px] cursor-pointer"
-                      title="View profile"
-                    >
-                      <span
-                        className="absolute inset-0 flex items-center justify-center"
-                        style={{ background: 'radial-gradient(80% 70% at 50% 100%, #2a6fe0 0%, #0b2a57 55%, #08111f 100%)' }}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProfessional(toProfessional(vendor))}
+                        className="ch-duo block w-full h-[300px] rounded-[20px] cursor-pointer"
+                        title="View profile"
                       >
-                        <span className="ch-display ch-silver text-[96px] group-hover:scale-105 transition-transform duration-700">
-                          {(vendor.business_name || 'S')
-                            .split(' ')
-                            .map((w) => w[0])
-                            .slice(0, 2)
-                            .join('')
-                            .toUpperCase()}
-                        </span>
-                      </span>
-                      {vendor.profile_image && (
                         <img
-                          src={resolveMediaUrl(vendor.profile_image)}
-                          onError={hideBrokenImage}
-                          alt={vendor.business_name}
-                          className="relative group-hover:scale-105"
+                          src={pickCover(getCoverPool(cat?.name || vendor.skills), vendor.id)}
+                          alt=""
+                          className="group-hover:scale-105"
                         />
-                      )}
-                      <span className="ch-glass ch-pill absolute top-3 left-3 z-10 !py-1.5 !px-3 !text-xs">
-                        ★ {vendor.avg_rating || '5.0'} · {vendor.review_count || 0}
-                      </span>
-                      {vendor.verification_status === 'verified' && (
-                        <span className="ch-glass absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center" title="Verified">
-                          <Check className="w-3.5 h-3.5 text-ch-ice" />
+                        <span className="ch-glass ch-pill absolute top-3 left-3 z-10 !py-1.5 !px-3 !text-xs">
+                          ★ {vendor.avg_rating || '5.0'} · {vendor.review_count || 0}
                         </span>
-                      )}
-                    </button>
-                    <div className="px-3 pt-[18px] pb-2.5">
+                        {vendor.verification_status === 'verified' && (
+                          <span className="ch-glass absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center" title="Verified">
+                            <Check className="w-3.5 h-3.5 text-ch-ice" />
+                          </span>
+                        )}
+                      </button>
+                      {/* Studio identity: own photo/logo, initials when missing or broken */}
+                      <span className="absolute left-4 -bottom-5 z-10 w-14 h-14 rounded-full overflow-hidden bg-[#e9eef6] text-[#0b2a57] ring-4 ring-[#0d1524] flex items-center justify-center text-base font-semibold pointer-events-none">
+                        {(vendor.business_name || 'S')
+                          .split(' ')
+                          .map((w) => w[0])
+                          .slice(0, 2)
+                          .join('')
+                          .toUpperCase()}
+                        {vendor.profile_image && (
+                          <img
+                            src={resolveMediaUrl(vendor.profile_image)}
+                            onError={hideBrokenImage}
+                            alt=""
+                            className="absolute inset-0 w-full h-full object-cover bg-[#e9eef6]"
+                          />
+                        )}
+                      </span>
+                    </div>
+                    <div className="px-3 pt-8 pb-2.5">
                       <button
                         type="button"
                         onClick={() => setSelectedProfessional(toProfessional(vendor))}
