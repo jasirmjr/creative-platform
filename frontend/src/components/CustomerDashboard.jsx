@@ -1118,7 +1118,7 @@ export default function CustomerDashboard({
                 {urgentCount > 0
                   ? `You have ${urgentCount} action item${urgentCount > 1 ? 's' : ''} requiring payment or review.`
                   : bookings.length === 0
-                  ? 'Welcome to Creative Hub! Search vetted creative talent or build a production crew.'
+                  ? 'Welcome to CrewUp! Search vetted creative talent or build a production crew.'
                   : `All productions are on track with ${upcomingProjects.length} upcoming shoot${upcomingProjects.length !== 1 ? 's' : ''}.`}
               </p>
             </div>

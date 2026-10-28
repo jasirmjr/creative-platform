@@ -260,7 +260,7 @@ export default function AdminSupportDeskModal({
                 </span>
               </div>
               <p className="text-[11px] text-purple-200/80 mt-0.5 flex items-center gap-2">
-                <span>Direct line to Creative Hub Platform Administration</span>
+                <span>Direct line to CrewUp Platform Administration</span>
                 <span>&bull;</span>
                 <span className="text-emerald-400 font-medium">● Support Online</span>
               </p>

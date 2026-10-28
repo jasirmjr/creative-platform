@@ -37,7 +37,7 @@ export default function Navbar({
             >
               <Aperture className="w-6 h-6 text-white" strokeWidth={1.6} />
               <span className="text-[17px] font-semibold tracking-[-0.02em] text-ch-text" style={{ fontFamily: "'Inter Tight', sans-serif" }}>
-                Creative Hub
+                CrewUp
               </span>
             </div>
 
@@ -140,7 +140,7 @@ export default function Navbar({
             className="text-[17px] font-semibold tracking-[-0.02em] text-ch-text whitespace-nowrap"
             style={{ fontFamily: "'Inter Tight', sans-serif" }}
           >
-            Creative Hub
+            CrewUp
           </span>
         </div>
 

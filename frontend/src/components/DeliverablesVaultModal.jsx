@@ -867,7 +867,7 @@ export default function DeliverablesVaultModal({
         {/* Footer */}
         <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs shrink-0">
           <div className="text-slate-500 flex items-center gap-2">
-            <span>🛡️ Creative Hub Media Escrow Protected</span>
+            <span>🛡️ CrewUp Media Escrow Protected</span>
           </div>
           <button
             type="button"

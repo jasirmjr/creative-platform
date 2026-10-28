@@ -79,16 +79,16 @@ export default function App() {
   // Dynamically update the browser tab title based on the active user in THIS tab
   useEffect(() => {
     if (!user) {
-      document.title = 'Creative Hub - Talent & Gear Marketplace';
+      document.title = 'CrewUp - Talent & Gear Marketplace';
     } else if (user.role === 'admin' || user.role === 'super_admin') {
-      document.title = `🛡️ Admin (${user.name || 'Console'}) | Creative Hub`;
+      document.title = `🛡️ Admin (${user.name || 'Console'}) | CrewUp`;
     } else if (user.role === 'vendor') {
       const studio = user.vendor_profile?.business_name || user.name || 'Studio';
-      document.title = `🎨 ${studio} (${user.name || 'Vendor'}) | Creative Hub`;
+      document.title = `🎨 ${studio} (${user.name || 'Vendor'}) | CrewUp`;
     } else if (user.role === 'customer') {
-      document.title = `👤 ${user.name || 'Client'} | Creative Hub`;
+      document.title = `👤 ${user.name || 'Client'} | CrewUp`;
     } else {
-      document.title = 'Creative Hub - Talent & Gear Marketplace';
+      document.title = 'CrewUp - Talent & Gear Marketplace';
     }
   }, [user]);
 

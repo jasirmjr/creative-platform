@@ -443,7 +443,7 @@ export default function ReceiptModal({
                     </div>
                     <div>
                       <div className="text-xs sm:text-sm font-black text-slate-900 leading-none">
-                        CREATIVE HUB
+                        CREWUP
                       </div>
                       <div className="text-[9px] font-bold text-blue-600 uppercase tracking-wider mt-0.5">
                         ONLINE ESCROW & TALENT

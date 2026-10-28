@@ -63,8 +63,8 @@ export default function ChatModal({
         };
       } else {
         return {
-          title: 'Creative Hub Support',
-          subtitle: c.admin_name ? `Handled by ${c.admin_name}` : 'Creative Hub Official Support',
+          title: 'CrewUp Support',
+          subtitle: c.admin_name ? `Handled by ${c.admin_name}` : 'CrewUp Official Support',
           badge: 'Platform Admin',
           isSupport: true,
           avatarLetter: 'S',
@@ -602,7 +602,7 @@ export default function ChatModal({
                   <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
                   {isAdminUser
                     ? `Official support thread with ${activeConv.business_name || 'this vendor'}`
-                    : 'Official Creative Hub support. Our team usually replies within a few hours.'}
+                    : 'Official CrewUp support. Our team usually replies within a few hours.'}
                 </div>
               )}
 
@@ -662,7 +662,7 @@ export default function ChatModal({
                             {!isMe && !grouped && m.sender_role === 'admin' && (
                               <span className="text-[11px] font-semibold text-indigo-700 mb-1 flex items-center gap-1">
                                 <ShieldCheck className="w-3.5 h-3.5" />
-                                Creative Hub Support
+                                CrewUp Support
                               </span>
                             )}
                             {!isMe && !grouped && m.sender_role === 'vendor' && isAdminUser && (
@@ -740,7 +740,7 @@ export default function ChatModal({
                 <div className="px-3 py-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
                   <span className="text-xs font-medium text-slate-500 shrink-0">Quick replies:</span>
                   {[
-                    { label: 'Listing approved', text: 'Hello, your profile verification and portfolio showcase have been approved by Creative Hub platform administration.' },
+                    { label: 'Listing approved', text: 'Hello, your profile verification and portfolio showcase have been approved by CrewUp platform administration.' },
                     { label: 'Request KYC', text: 'Please provide your government-issued ID and recent production invoice or lookbook for listing verification.' },
                     { label: 'Deposit confirmed', text: 'We have verified your security deposit. Your profile is now actively visible to clients in the marketplace.' },
                     { label: 'Reviewing dispute', text: 'Platform administration is currently reviewing the client shoot timeline and dispute claim. We will issue a determination shortly.' },

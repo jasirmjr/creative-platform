@@ -799,7 +799,7 @@ export default function Dashboard({
           </div>
 
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 mt-[140px] pt-7 border-t border-ch-line text-[13px] text-ch-faint">
-            <span>© {new Date().getFullYear()} Creative Hub</span>
+            <span>© {new Date().getFullYear()} CrewUp</span>
             <div className="flex gap-8">
               <button type="button" onClick={() => scrollToId('ch-studios')} className="hover:text-ch-text cursor-pointer">Talent</button>
               <button type="button" onClick={() => scrollToId('featured-categories')} className="hover:text-ch-text cursor-pointer">Gear</button>
