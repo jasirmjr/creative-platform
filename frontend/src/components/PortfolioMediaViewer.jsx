@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { resolveMediaUrl } from '../utils/media';
 
 /**
  * Utility to parse and classify media URLs (Instagram, YouTube, Vimeo, direct MP4, etc.)
@@ -108,10 +109,8 @@ export default function PortfolioMediaViewer({
   const [imgError, setImgError] = useState(false);
   const [dynamicThumb, setDynamicThumb] = useState(thumbnailUrl || null);
 
-  // Normalize /uploads to absolute backend origin if needed
-  const finalUrl = mediaUrl?.startsWith('/uploads')
-    ? `${mediaUrl}`
-    : mediaUrl;
+  // Legacy uploads saved with the dev-server origin are served relative
+  const finalUrl = resolveMediaUrl(mediaUrl);
 
   const parsed = parseMediaUrl(finalUrl, mediaType);
 
@@ -151,7 +150,7 @@ export default function PortfolioMediaViewer({
   const getProxiedUrl = (url) => {
     if (!url) return null;
     if (url.includes('127.0.0.1:5000') || url.includes('localhost:5000') || url.startsWith('/')) {
-      return url;
+      return resolveMediaUrl(url);
     }
     return `/api/v1/portfolios/proxy-media?url=${encodeURIComponent(url)}`;
   };

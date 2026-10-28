@@ -15,6 +15,7 @@ import {
 import BookingModal from './BookingModal';
 import VendorModal from './VendorModal';
 import ProfessionalDetailModal from './ProfessionalDetailModal';
+import { resolveMediaUrl, hideBrokenImage } from '../utils/media';
 
 export default function Dashboard({
   user,
@@ -344,10 +345,14 @@ export default function Dashboard({
             >
               <div className="flex items-center gap-3">
                 <div className="ch-duo w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-ch-ice text-sm font-medium">
-                  {featuredVendor.profile_image ? (
-                    <img src={featuredVendor.profile_image} alt="" />
-                  ) : (
-                    (featuredVendor.owner_name || featuredVendor.business_name || 'C').charAt(0)
+                  {(featuredVendor.owner_name || featuredVendor.business_name || 'C').charAt(0)}
+                  {featuredVendor.profile_image && (
+                    <img
+                      src={resolveMediaUrl(featuredVendor.profile_image)}
+                      onError={hideBrokenImage}
+                      alt=""
+                      className="absolute inset-0"
+                    />
                   )}
                 </div>
                 <div className="min-w-0">
@@ -593,22 +598,26 @@ export default function Dashboard({
                       className="ch-duo block w-full h-[300px] rounded-[20px] cursor-pointer"
                       title="View profile"
                     >
-                      {vendor.profile_image ? (
-                        <img src={vendor.profile_image} alt={vendor.business_name} className="group-hover:scale-105" />
-                      ) : (
-                        <span
-                          className="absolute inset-0 flex items-center justify-center"
-                          style={{ background: 'radial-gradient(80% 70% at 50% 100%, #2a6fe0 0%, #0b2a57 55%, #08111f 100%)' }}
-                        >
-                          <span className="ch-display ch-silver text-[96px] group-hover:scale-105 transition-transform duration-700">
-                            {(vendor.business_name || 'S')
-                              .split(' ')
-                              .map((w) => w[0])
-                              .slice(0, 2)
-                              .join('')
-                              .toUpperCase()}
-                          </span>
+                      <span
+                        className="absolute inset-0 flex items-center justify-center"
+                        style={{ background: 'radial-gradient(80% 70% at 50% 100%, #2a6fe0 0%, #0b2a57 55%, #08111f 100%)' }}
+                      >
+                        <span className="ch-display ch-silver text-[96px] group-hover:scale-105 transition-transform duration-700">
+                          {(vendor.business_name || 'S')
+                            .split(' ')
+                            .map((w) => w[0])
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase()}
                         </span>
+                      </span>
+                      {vendor.profile_image && (
+                        <img
+                          src={resolveMediaUrl(vendor.profile_image)}
+                          onError={hideBrokenImage}
+                          alt={vendor.business_name}
+                          className="relative group-hover:scale-105"
+                        />
                       )}
                       <span className="ch-glass ch-pill absolute top-3 left-3 z-10 !py-1.5 !px-3 !text-xs">
                         ★ {vendor.avg_rating || '5.0'} · {vendor.review_count || 0}

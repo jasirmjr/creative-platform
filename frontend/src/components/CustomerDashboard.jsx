@@ -77,6 +77,7 @@ import {
   formatDateRange,
   greeting,
 } from './dashboard/bookingStatus';
+import { resolveMediaUrl, hideBrokenImage } from '../utils/media';
 
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
@@ -1635,7 +1636,7 @@ export default function CustomerDashboard({
                       <div className="flex items-center gap-3">
                         <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 font-bold text-base flex items-center justify-center shrink-0 overflow-hidden">
                           {vendor.profile_image ? (
-                            <img src={vendor.profile_image} alt="" className="w-full h-full object-cover" />
+                            <img src={resolveMediaUrl(vendor.profile_image)} onError={hideBrokenImage} alt="" className="w-full h-full object-cover" />
                           ) : (
                             (vendor.business_name || 'V').charAt(0).toUpperCase()
                           )}
@@ -2011,7 +2012,7 @@ export default function CustomerDashboard({
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white font-extrabold text-2xl flex items-center justify-center shadow-md overflow-hidden">
                   {user?.profile_image ? (
-                    <img src={user.profile_image} alt="" className="w-full h-full object-cover" />
+                    <img src={resolveMediaUrl(user.profile_image)} onError={hideBrokenImage} alt="" className="w-full h-full object-cover" />
                   ) : (
                     (user?.name || 'C')[0].toUpperCase()
                   )}

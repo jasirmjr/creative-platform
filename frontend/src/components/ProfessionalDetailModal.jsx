@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import PortfolioMediaViewer from './PortfolioMediaViewer';
+import { resolveMediaUrl, hideBrokenImage } from '../utils/media';
 
 export default function ProfessionalDetailModal({
   professional,
@@ -142,7 +143,7 @@ export default function ProfessionalDetailModal({
           <div className="flex flex-col sm:flex-row sm:items-center gap-6">
             <div className="w-24 h-24 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-700 text-white font-extrabold text-4xl flex items-center justify-center shadow-md shrink-0 overflow-hidden">
               {professional.profile_image ? (
-                <img src={professional.profile_image} alt="" className="w-full h-full object-cover" />
+                <img src={resolveMediaUrl(professional.profile_image)} onError={hideBrokenImage} alt="" className="w-full h-full object-cover" />
               ) : (
                 (professional.business_name || professional.title || 'C')[0]
               )}

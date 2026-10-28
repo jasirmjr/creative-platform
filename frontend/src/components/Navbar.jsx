@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search, LogOut, ShoppingCart, MessageSquare, Aperture } from 'lucide-react';
+import { resolveMediaUrl, hideBrokenImage } from '../utils/media';
 
 export default function Navbar({
   user,
@@ -97,7 +98,7 @@ export default function Navbar({
                     className="w-11 h-11 rounded-full overflow-hidden bg-[#0b2a57] text-ch-ice text-xs font-semibold flex items-center justify-center hover:ring-2 hover:ring-white/20 transition-all cursor-pointer group relative"
                   >
                     {user?.profile_image ? (
-                      <img src={user.profile_image} alt="" className="w-full h-full object-cover" />
+                      <img src={resolveMediaUrl(user.profile_image)} onError={hideBrokenImage} alt="" className="w-full h-full object-cover" />
                     ) : (
                       (user.name || 'U').charAt(0).toUpperCase()
                     )}
@@ -134,17 +135,13 @@ export default function Navbar({
           onClick={() => onNavigate?.('marketplace')}
           className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none min-w-0"
         >
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-base shadow-xs">
-            C
-          </div>
-          <div>
-            <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900 block leading-tight font-heading whitespace-nowrap">
-              CREATIVE <span className="text-blue-600">HUB</span>
-            </span>
-            <span className="text-[10px] text-slate-500 hidden sm:block tracking-wider uppercase font-medium">
-              Talent & Gear Managed Hub
-            </span>
-          </div>
+          <Aperture className="w-6 h-6 text-white shrink-0" strokeWidth={1.6} />
+          <span
+            className="text-[17px] font-semibold tracking-[-0.02em] text-ch-text whitespace-nowrap"
+            style={{ fontFamily: "'Inter Tight', sans-serif" }}
+          >
+            Creative Hub
+          </span>
         </div>
 
         {/* Minimal Search Bar */}
@@ -152,7 +149,7 @@ export default function Navbar({
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search courses, projects, gear..."
+            placeholder="Search crew, studios, gear..."
             className="w-full bg-slate-100/90 hover:bg-slate-100 focus:bg-white border border-slate-200/90 rounded-full pl-10 pr-4 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all shadow-2xs"
           />
         </div>
@@ -242,7 +239,7 @@ export default function Navbar({
               <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/80">
                 <div className="w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
                   {user?.profile_image ? (
-                    <img src={user.profile_image} alt="" className="w-full h-full object-cover" />
+                    <img src={resolveMediaUrl(user.profile_image)} onError={hideBrokenImage} alt="" className="w-full h-full object-cover" />
                   ) : (
                     (user.name || 'U').charAt(0).toUpperCase()
                   )}

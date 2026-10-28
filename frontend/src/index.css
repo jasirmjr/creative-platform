@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 @import "tailwindcss";
+@import "./theme-dark.generated.css";
 
 /* Cinematic blue landing theme */
 @theme {
@@ -17,8 +18,8 @@
 
 :root {
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-heading: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --bg-primary: #0a0c10;
+  --font-heading: 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --bg-primary: #04070d;
   --bg-secondary: #12161f;
   --bg-card: rgba(23, 28, 40, 0.7);
   --bg-card-hover: rgba(30, 38, 54, 0.9);
@@ -60,7 +61,17 @@ body {
 
 h1, h2, h3, h4, h5, h6, .font-heading {
   font-family: var(--font-heading) !important;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+option {
+  background: #0d1524;
+  color: #e9eef6;
 }
 
 /* Background Ambient Glows */

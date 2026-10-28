@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import InteractiveCalendarPicker from './InteractiveCalendarPicker';
+import { resolveMediaUrl, hideBrokenImage } from '../utils/media';
 
 export default function CartModal({
   isOpen,
@@ -322,7 +323,7 @@ export default function CartModal({
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-2xs">
                               {item.profile_image ? (
-                                <img src={item.profile_image} alt="" className="w-full h-full object-cover" />
+                                <img src={resolveMediaUrl(item.profile_image)} onError={hideBrokenImage} alt="" className="w-full h-full object-cover" />
                               ) : (
                                 (item.business_name || item.title || 'S').charAt(0).toUpperCase()
                               )}

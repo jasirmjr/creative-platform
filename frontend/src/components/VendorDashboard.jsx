@@ -68,6 +68,7 @@ import {
   formatDateRange,
   greeting,
 } from './dashboard/bookingStatus';
+import { resolveMediaUrl, hideBrokenImage } from '../utils/media';
 
 export default function VendorDashboard({ user, token: propToken, onBackToMarketplace, onOpenChat, onVendorUpdated, onLogout }) {
   const [activeTab, setActiveTab] = useState('home'); // 'home' | 'bookings' | 'schedule' | 'gallery' | 'reviews' | 'disputes' | 'profile'
@@ -1286,7 +1287,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                       <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-100 border-2 border-slate-200 overflow-hidden flex items-center justify-center shadow-xs">
                         {editProfileData.profile_image ? (
                           <img
-                            src={editProfileData.profile_image}
+                            src={resolveMediaUrl(editProfileData.profile_image)} onError={hideBrokenImage}
                             alt="Profile"
                             className="w-full h-full object-cover"
                           />
@@ -1602,7 +1603,7 @@ export default function VendorDashboard({ user, token: propToken, onBackToMarket
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-sm shadow-xs overflow-hidden shrink-0">
                         {editProfileData.profile_image ? (
-                          <img src={editProfileData.profile_image} alt="" className="w-full h-full object-cover" />
+                          <img src={resolveMediaUrl(editProfileData.profile_image)} onError={hideBrokenImage} alt="" className="w-full h-full object-cover" />
                         ) : (
                           (editProfileData.business_name || 'S').charAt(0).toUpperCase()
                         )}

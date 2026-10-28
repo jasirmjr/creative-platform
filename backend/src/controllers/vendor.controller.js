@@ -299,7 +299,7 @@ exports.uploadAvatar = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No image file uploaded.' });
     }
 
-    const avatarUrl = `http://127.0.0.1:5000/uploads/${req.file.filename}`;
+    const avatarUrl = `/uploads/${req.file.filename}`;
     const { rows } = await db.query(
       `UPDATE vendor_profiles SET profile_image = $1 WHERE user_id = $2 RETURNING *;`,
       [avatarUrl, userId]

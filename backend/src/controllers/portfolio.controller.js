@@ -53,7 +53,7 @@ exports.uploadFile = async (req, res) => {
     }
 
     const mediaType = detectMediaType(req.file.mimetype, req.file.originalname);
-    const mediaUrl = `http://127.0.0.1:5000/uploads/${req.file.filename}`;
+    const mediaUrl = `/uploads/${req.file.filename}`;
 
     return res.status(200).json({
       success: true,
@@ -166,7 +166,7 @@ exports.createPortfolioItem = async (req, res) => {
 
     // If file was uploaded directly via multipart/form-data
     if (req.file) {
-      media_url = `http://127.0.0.1:5000/uploads/${req.file.filename}`;
+      media_url = `/uploads/${req.file.filename}`;
       if (!media_type) {
         media_type = detectMediaType(req.file.mimetype, req.file.originalname);
       }
